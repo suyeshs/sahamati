@@ -49,6 +49,17 @@ dist/
 build/
 *.egg-info/
 
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+src-tauri/binaries/
+
+# Compiled agent server
+agent-server/agent-server-*
+
+# Bun
+bun.lock
+
 # Docker
 docker-compose.override.yml
 
@@ -58,3 +69,4 @@ docker-compose.override.yml
 *.key
 *.pem
 *.p12
+client_secret_*.json
