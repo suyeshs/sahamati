@@ -99,3 +99,6 @@ docs/generated/
 
 # Working drafts whose canonical home is elsewhere (Google Docs, etc.)
 agentic guardrails
+
+# Cloudflare Wrangler / Miniflare local dev state
+**/.wrangler/
