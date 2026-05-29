@@ -14,6 +14,7 @@ import {
   type AuthUser,
   type AuthResponse,
 } from "./auth-api";
+import { ensureUser, get2faStatus, validate2fa } from "../lib/project-api";
 import {
   isTauriEnvironment,
   startOAuthFlow,
@@ -51,8 +52,10 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   isLoading: boolean;
   error: string | null;
+  needs2fa: boolean;
   login: () => void;
   logout: () => Promise<void>;
+  verify2faLogin: (code: string) => Promise<void>;
   clearError: () => void;
   getAuthHeader: () => Record<string, string>;
 }
@@ -71,9 +74,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [gisReady, setGisReady] = useState(false);
+  const [needs2fa, setNeeds2fa] = useState(false);
+  const pendingSessionRef = useRef<AuthResponse | null>(null);
   const pollAbortRef = useRef<AbortController | null>(null);
 
-  const saveSession = useCallback((data: AuthResponse) => {
+  const completeSession = useCallback((data: AuthResponse) => {
     setState({
       user: data.user,
       token: data.token,
@@ -88,7 +93,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         expiresAt: data.expiresAt,
       })
     );
+    setNeeds2fa(false);
+    pendingSessionRef.current = null;
   }, []);
+
+  const saveSession = useCallback(async (data: AuthResponse) => {
+    // Register user in backend database first
+    try {
+      await ensureUser(data.user.email, data.user.name, data.user.picture);
+    } catch (err) {
+      console.warn("Failed to register user in DB:", err);
+    }
+
+    // Check if user has 2FA enabled
+    try {
+      const { enabled } = await get2faStatus(data.user.email);
+      if (enabled) {
+        // Hold session pending 2FA verification
+        pendingSessionRef.current = data;
+        setState((prev) => ({ ...prev, user: data.user }));
+        setNeeds2fa(true);
+        return;
+      }
+    } catch {
+      // If 2FA status check fails, proceed without 2FA
+    }
+
+    completeSession(data);
+  }, [completeSession]);
+
+  const verify2faLogin = useCallback(async (code: string) => {
+    const pending = pendingSessionRef.current;
+    if (!pending?.user?.email) {
+      throw new Error("No pending session");
+    }
+
+    setError(null);
+    const { success } = await validate2fa(pending.user.email, code);
+    if (!success) {
+      throw new Error("Invalid code");
+    }
+
+    completeSession(pending);
+  }, [completeSession]);
 
   const clearSession = useCallback(() => {
     setState({
@@ -98,6 +145,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: false,
     });
     localStorage.removeItem(STORAGE_KEY);
+    setNeeds2fa(false);
+    pendingSessionRef.current = null;
   }, []);
 
   // Restore session from localStorage
@@ -114,6 +163,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             expiresAt: parsed.expiresAt,
             isAuthenticated: true,
           });
+          // Re-register user in DB in case it was recreated
+          ensureUser(parsed.user.email, parsed.user.name, parsed.user.picture).catch(() => {});
         } else {
           localStorage.removeItem(STORAGE_KEY);
         }
@@ -344,8 +395,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...state,
         isLoading,
         error,
+        needs2fa,
         login,
         logout,
+        verify2faLogin,
         clearError,
         getAuthHeader,
       }}

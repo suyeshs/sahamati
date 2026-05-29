@@ -1,0 +1,22 @@
+{
+  "name": "@sahamati/cloud-sync",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "bunx wrangler dev",
+    "docs:build": "make -C ../docs/portal build",
+    "predeploy": "npm run docs:build",
+    "deploy": "bunx wrangler deploy",
+    "db:create": "bunx wrangler d1 create sahamati-sync-db",
+    "kv:create": "bunx wrangler kv namespace create SAHAMATI_KV",
+    "db:init": "curl -X POST http://localhost:8787/api/sync/init -H 'Authorization: Bearer $SYNC_SECRET'"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "hono": "^4.12.7"
+  }
+}

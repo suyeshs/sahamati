@@ -1,4 +1,6 @@
-import prompt from "../prompts/knowledge.md" with { type: "text" };
+import { readPrompt } from "./read-prompt.js";
+
+const prompt = readPrompt("knowledge.md");
 
 export const knowledgeAgent = {
   description:

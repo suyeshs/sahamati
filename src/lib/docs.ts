@@ -27,3 +27,52 @@ export function groupByCategory(docs: DocEntry[]): Record<string, DocEntry[]> {
     {} as Record<string, DocEntry[]>
   );
 }
+
+export interface PhaseTemplate {
+  title: string;
+  filename: string;
+  path: string;
+  description: string;
+}
+
+const TEMPLATE: Record<string, PhaseTemplate> = {
+  BRD: {
+    title: "Business Requirements (BRD)",
+    filename: "BRD_TEMPLATE.md",
+    path: "docs/templates/BRD_TEMPLATE.md",
+    description: "Captures business objectives, stakeholders, scope, and success criteria.",
+  },
+  INTENT: {
+    title: "Intent Document",
+    filename: "INTENT_DOCUMENT_TEMPLATE.md",
+    path: "docs/templates/INTENT_DOCUMENT_TEMPLATE.md",
+    description: "AI-native alternative to a BRD — declares outcome, constraints, and signals.",
+  },
+  USER_STORY: {
+    title: "User Story",
+    filename: "USER_STORY_TEMPLATE.md",
+    path: "docs/templates/USER_STORY_TEMPLATE.md",
+    description: "User-facing requirements with acceptance criteria.",
+  },
+  ARCHITECTURE: {
+    title: "Architecture",
+    filename: "ARCHITECTURE_TEMPLATE.md",
+    path: "docs/templates/ARCHITECTURE_TEMPLATE.md",
+    description: "System architecture, components, data flows, and tech decisions.",
+  },
+  SECURITY: {
+    title: "Security Assessment",
+    filename: "SECURITY_ASSESSMENT_TEMPLATE.md",
+    path: "docs/templates/SECURITY_ASSESSMENT_TEMPLATE.md",
+    description: "Threat model, controls, residual risk, and compliance posture.",
+  },
+};
+
+export const PHASE_TEMPLATES: Record<string, PhaseTemplate[]> = {
+  Discovery: [TEMPLATE.BRD, TEMPLATE.INTENT],
+  Requirements: [TEMPLATE.USER_STORY],
+  Design: [TEMPLATE.ARCHITECTURE],
+  Development: [],
+  Testing: [TEMPLATE.SECURITY],
+  Deployment: [],
+};

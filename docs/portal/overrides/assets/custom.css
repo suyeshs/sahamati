@@ -1,0 +1,66 @@
+/* Sahamati portal — minor density + accent tweaks. */
+
+.md-typeset table:not([class]) {
+  font-size: 0.78rem;
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  padding: 0.4rem 0.6rem;
+  line-height: 1.35;
+}
+
+.md-typeset h1,
+.md-typeset h2 {
+  letter-spacing: -0.01em;
+}
+
+.md-typeset .admonition.note,
+.md-typeset details.note {
+  border-left-color: #3f51b5;
+}
+
+.md-typeset .admonition.warning,
+.md-typeset details.warning {
+  border-left-color: #f57c00;
+}
+
+.md-typeset .tabbed-set > label {
+  font-size: 0.82rem;
+}
+
+.md-header__title {
+  font-weight: 600;
+}
+
+
+/* Per-project page backlink to the project dashboard in the portal */
+.md-typeset .project-backlink,
+.md-typeset p.project-backlink {
+  display: inline-block;
+  margin: 0 0 1.4rem;
+  padding: 0.4rem 0.8rem;
+  background: rgba(63, 81, 181, 0.08);
+  border-left: 3px solid #3f51b5;
+  border-radius: 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.md-typeset .project-backlink a,
+.md-typeset p.project-backlink a {
+  color: #3f51b5;
+  text-decoration: none;
+}
+.md-typeset .project-backlink a:hover,
+.md-typeset p.project-backlink a:hover {
+  text-decoration: underline;
+}
+[data-md-color-scheme="slate"] .md-typeset .project-backlink,
+[data-md-color-scheme="slate"] .md-typeset p.project-backlink {
+  background: rgba(140, 158, 255, 0.12);
+  border-left-color: #8c9eff;
+}
+[data-md-color-scheme="slate"] .md-typeset .project-backlink a,
+[data-md-color-scheme="slate"] .md-typeset p.project-backlink a {
+  color: #c5cae9;
+}

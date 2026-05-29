@@ -1,0 +1,58 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sahamati-sync",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-03-01",
+
+  // D1 Database — serverless SQLite (mirrors local encrypted schema)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sahamati-sync-db",
+      "database_id": "42946c7a-f34e-4d42-90a3-d52854d1bb54"
+    }
+  ],
+
+  // KV Namespace — session tokens, device state, cached configs
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "43cd357be49e46d99821de3432d65a9d"
+    }
+  ],
+
+  // Durable Objects — per-project sync coordination
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROJECT_SYNC",
+        "class_name": "ProjectSyncDO"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ProjectSyncDO"]
+    }
+  ],
+
+  "vars": {
+    "ENVIRONMENT": "production",
+    "GCS_BUCKET": "sahamati-docs"
+  },
+
+  // Static documentation portal (MkDocs build output, gitignored).
+  // Served behind authMiddleware at /docs/* (see src/worker.ts).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page"
+  },
+
+  // Observability
+  "observability": {
+    "enabled": true
+  }
+}

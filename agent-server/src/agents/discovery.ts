@@ -1,4 +1,6 @@
-import prompt from "../prompts/discovery.md" with { type: "text" };
+import { readPrompt } from "./read-prompt.js";
+
+const prompt = readPrompt("discovery.md");
 
 export const discoveryAgent = {
   description:

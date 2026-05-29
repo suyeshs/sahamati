@@ -1,0 +1,70 @@
+# Sahamati documentation portal — source inventory.
+#
+# Each category becomes a top-level nav tab.  Patterns are either:
+#   - { from: "<relative path>", title: "...", group?: "...", showcase?: true }
+#   - { glob: "<relative glob>", title_from: "filename" }
+#
+# Paths are resolved relative to this file (docs/portal/sources.yml).
+# Adding a new doc = drop a .md into an existing glob, or add a new entry here.
+
+categories:
+  - id: projects
+    title: Your Projects
+    tab: Projects
+    source: sqlite
+    database: "../../data/sahamati.db"
+    data_dir: "../../data/projects"
+    description: >
+      Projects managed through the Sahamati app.  Each project's documents
+      (BRDs, architecture, security assessments, …) are ingested automatically
+      from the local app database and grouped by category.
+
+  - id: framework
+    title: Framework & Process
+    tab: Framework
+    description: >
+      The Sahamati development framework — process, AI-native workflow,
+      agentic documentation, and the quick-reference guide that ties them
+      together.  Read these first if you're new to how we build.
+    patterns:
+      - { from: "../../SOFTWARE_DEVELOPMENT_PROCESS.md", title: "Software Development Process" }
+      - { from: "../../AI_NATIVE_DEVELOPMENT_PROCESS.md", title: "AI-Native Development Process" }
+      - { from: "../../AGENTIC_DOCUMENTATION_FRAMEWORK.md", title: "Agentic Documentation Framework" }
+      - { from: "../../PROCESS_COMPARISON_GUIDE.md", title: "Process Comparison Guide" }
+      - { from: "../../QUICK_REFERENCE.md", title: "Quick Reference" }
+
+  - id: featured
+    title: Featured Documents
+    tab: Featured
+    description: >
+      Long-form or showcase documents that aren't tied to a specific project.
+      Project-owned BRDs live under the Projects tab.
+    patterns:
+      - { from: "../../BRD.md", title: "SaaNs v2 — Analytics & Answering System", slug: "saans-v2", showcase: true }
+
+  - id: architecture
+    title: Architecture
+    tab: Architecture
+    description: >
+      System, component, and integration architecture documents.  Populated
+      automatically from `docs/generated/architecture/`.
+    patterns:
+      - { glob: "../../docs/generated/architecture/*.md", title_from: "filename" }
+
+  - id: security
+    title: Security Assessments
+    tab: Security
+    description: >
+      Security assessments and audit reports for Sahamati platforms and
+      deployments.
+    patterns:
+      - { glob: "../../docs/generated/security/*.md", title_from: "filename" }
+
+  - id: doc-templates
+    title: Document Templates
+    tab: Templates
+    description: >
+      Canonical templates used by agents and humans to draft BRDs, intent
+      documents, architecture docs, security assessments, and user stories.
+    patterns:
+      - { glob: "../../docs/templates/*.md", title_from: "filename" }

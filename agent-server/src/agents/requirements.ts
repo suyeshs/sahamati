@@ -1,4 +1,6 @@
-import prompt from "../prompts/requirements.md" with { type: "text" };
+import { readPrompt } from "./read-prompt.js";
+
+const prompt = readPrompt("requirements.md");
 
 export const requirementsAgent = {
   description:

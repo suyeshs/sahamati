@@ -54,7 +54,7 @@ githubRoutes.get("/auth/github/start", (c) => {
   const params = new URLSearchParams({
     client_id: AUTH_CONFIG.githubClientId,
     redirect_uri: AUTH_CONFIG.githubCallbackUrl,
-    scope: "repo read:user",
+    scope: "repo read:user read:org",
     state: statePayload,
   });
 

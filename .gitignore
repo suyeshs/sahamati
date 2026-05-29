@@ -49,6 +49,12 @@ dist/
 build/
 *.egg-info/
 
+# MkDocs documentation portal — generated markdown, build output, and cloud deploy target
+docs/portal/docs/
+docs/portal/site/
+docs/portal/mkdocs.yml
+cloud/public/docs/
+
 # Tauri / Rust
 src-tauri/target/
 src-tauri/gen/
@@ -57,11 +63,17 @@ src-tauri/binaries/
 # Compiled agent server
 agent-server/agent-server-*
 
+# Local encrypted SQLite + runtime state (PID file, sync log, projects)
+data/
+
 # Bun
 bun.lock
 
 # Docker
 docker-compose.override.yml
+
+# OpenClaw agent workspaces (user data, API keys)
+openclaw-agents/
 
 # Secrets and sensitive data
 **/credentials.json
@@ -70,3 +82,20 @@ docker-compose.override.yml
 *.pem
 *.p12
 client_secret_*.json
+
+# Google Cloud service-account credentials (used for Vertex AI ADC)
+**/service-account*.json
+**/sa-*.json
+**/*-sa.json
+**/gcp-*.json
+**/*-credentials.json
+**/application_default_credentials.json
+
+# Local Claude Code settings (per-machine permissions and hooks)
+.claude/settings.local.json
+
+# Generated artefacts (CLAUDE.md hard rule: agent output, not source)
+docs/generated/
+
+# Working drafts whose canonical home is elsewhere (Google Docs, etc.)
+agentic guardrails

@@ -1,13 +1,24 @@
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
 
-export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "orchestrator";
+export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "evernote" | "video" | "orchestrator" | "openclaw";
+
+export interface GitHubFileRef {
+  owner: string;
+  repo: string;
+  branch: string;
+  path: string;
+  type: "file" | "dir";
+  name: string;
+}
 
 export interface AgentRunOptions {
   prompt: string;
   agentType?: AgentType;
+  openclawAgent?: string;
   sessionId?: string;
   userEmail?: string;
+  githubFiles?: GitHubFileRef[];
 }
 
 export interface AgentEvent {
@@ -127,4 +138,162 @@ export async function getGeneratedDoc(
 export async function checkHealth(): Promise<{ status: string; agents: string[] }> {
   const res = await fetch(`${AGENT_SERVER_URL}/health`);
   return res.json();
+}
+
+// ---- OpenClaw Agent API ----
+
+export interface OpenClawAgentSummary {
+  name: string;
+  displayName: string;
+  description: string;
+  llmProvider: string;
+  llmModel: string;
+  skillCount: number;
+  lastModified: string;
+}
+
+export interface OpenClawAgentConfig {
+  name: string;
+  soul: string;
+  tools: string;
+  identity: string;
+  heartbeat?: string;
+  llmProvider: string;
+  llmModel: string;
+  skills: string[];
+}
+
+export interface NewOpenClawAgentRequest {
+  name: string;
+  displayName: string;
+  description: string;
+  soul: string;
+  tools: string;
+  identity: string;
+  llmProvider: string;
+  llmModel: string;
+}
+
+export async function listOpenClawAgents(): Promise<OpenClawAgentSummary[]> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents`);
+  const data = (await res.json()) as { agents: OpenClawAgentSummary[] };
+  return data.agents;
+}
+
+export async function getOpenClawAgent(name: string): Promise<OpenClawAgentConfig> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(name)}`);
+  if (!res.ok) throw new Error("Agent not found");
+  const data = (await res.json()) as { agent: OpenClawAgentConfig };
+  return data.agent;
+}
+
+export async function createOpenClawAgent(req: NewOpenClawAgentRequest): Promise<OpenClawAgentConfig> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = (await res.json()) as { error: string };
+    throw new Error(err.error);
+  }
+  const data = (await res.json()) as { agent: OpenClawAgentConfig };
+  return data.agent;
+}
+
+export async function updateOpenClawAgent(
+  name: string,
+  updates: Partial<Pick<OpenClawAgentConfig, "soul" | "tools" | "identity" | "heartbeat" | "llmProvider" | "llmModel">>
+): Promise<OpenClawAgentConfig> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+  if (!res.ok) throw new Error("Failed to update agent");
+  const data = (await res.json()) as { agent: OpenClawAgentConfig };
+  return data.agent;
+}
+
+export async function deleteOpenClawAgent(name: string): Promise<void> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete agent");
+}
+
+// ---- OpenClaw Skills API ----
+
+export interface SkillInfo {
+  filename: string;
+  name: string;
+  description: string;
+}
+
+export interface ClawHubSkill {
+  id: string;
+  name: string;
+  description: string;
+  author: string;
+  downloads: number;
+  tags: string[];
+}
+
+export async function listAgentSkills(agentName: string): Promise<SkillInfo[]> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills`);
+  const data = (await res.json()) as { skills: SkillInfo[] };
+  return data.skills;
+}
+
+export async function installSkillFromClawHub(agentName: string, clawHubId: string): Promise<void> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ clawHubId }),
+  });
+  if (!res.ok) throw new Error("Failed to install skill");
+}
+
+export async function installCustomSkill(agentName: string, filename: string, content: string): Promise<void> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename, content }),
+  });
+  if (!res.ok) throw new Error("Failed to install skill");
+}
+
+export async function getSkillContent(agentName: string, filename: string): Promise<string> {
+  const res = await fetch(
+    `${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills/${encodeURIComponent(filename)}`
+  );
+  if (!res.ok) throw new Error("Failed to load skill content");
+  const data = (await res.json()) as { content: string };
+  return data.content;
+}
+
+export async function updateSkillContent(agentName: string, filename: string, content: string): Promise<void> {
+  const res = await fetch(
+    `${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills/${encodeURIComponent(filename)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    }
+  );
+  if (!res.ok) throw new Error("Failed to update skill");
+}
+
+export async function removeAgentSkill(agentName: string, filename: string): Promise<void> {
+  const res = await fetch(
+    `${AGENT_SERVER_URL}/api/openclaw/agents/${encodeURIComponent(agentName)}/skills/${encodeURIComponent(filename)}`,
+    { method: "DELETE" }
+  );
+  if (!res.ok) throw new Error("Failed to remove skill");
+}
+
+export async function searchClawHubSkills(query: string): Promise<ClawHubSkill[]> {
+  const res = await fetch(`${AGENT_SERVER_URL}/api/openclaw/skills/search?q=${encodeURIComponent(query)}`);
+  const data = (await res.json()) as { skills: ClawHubSkill[] };
+  return data.skills;
 }
