@@ -2,7 +2,7 @@
 
 import { writeFileSync, renameSync, copyFileSync } from "fs";
 import { spawn } from "child_process";
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3-multiple-ciphers";
 import type {
   VideoGenerationOptions,
   VideoExtendOptions,

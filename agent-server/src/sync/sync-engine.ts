@@ -19,9 +19,11 @@
  * - Auth tokens validated against Cloudflare KV session store
  */
 
-import type { SQLQueryBindings } from "bun:sqlite";
 import { getDb } from "../db/index.js";
 import { existsSync, readFileSync } from "fs";
+
+// SQLite bind parameter — better-sqlite3 accepts these primitive types positionally.
+type SQLQueryBindings = string | number | bigint | Buffer | null;
 import { join, resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 

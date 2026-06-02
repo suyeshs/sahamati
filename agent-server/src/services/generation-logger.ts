@@ -1,6 +1,6 @@
 // Generation logger — adapted from sahamati-video for better-sqlite3
 
-import type { Database } from "bun:sqlite";
+import type { Database } from "better-sqlite3-multiple-ciphers";
 
 export type LogLevel = "info" | "thinking" | "action" | "success" | "error" | "warning";
 
