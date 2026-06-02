@@ -1,10 +1,12 @@
+import { authHeader } from "./auth-token";
+
 const BASE_URL = import.meta.env.VITE_AGENT_SERVER_URL || "http://localhost:3001";
 
 async function apiFetch<T>(path: string, options?: RequestInit & { email?: string }): Promise<T> {
   const { email, ...fetchOptions } = options || {};
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(email ? { "X-User-Email": email } : {}),
+    ...authHeader(),
     ...(fetchOptions.headers as Record<string, string> || {}),
   };
 
@@ -188,7 +190,7 @@ export function runProjectAgent(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Email": email,
+      ...authHeader(),
     },
     body: JSON.stringify({ prompt, agentType, phaseId }),
     signal: controller.signal,

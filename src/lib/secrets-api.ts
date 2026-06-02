@@ -2,6 +2,8 @@
 // sahamati-kms. Mirrors the response shapes defined in
 // agent-server/src/services/kms-client.ts.
 
+import { authHeader } from "./auth-token";
+
 const BASE_URL = import.meta.env.VITE_AGENT_SERVER_URL || "http://localhost:3001";
 
 export interface KMSKeyMetadata {
@@ -63,7 +65,7 @@ async function apiFetch<T>(
     ...rest,
     headers: {
       "Content-Type": "application/json",
-      "X-User-Email": email,
+      ...authHeader(),
       ...(rest.headers as Record<string, string> | undefined),
     },
   });
@@ -151,7 +153,7 @@ export function runSecretAssistant(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-User-Email": email,
+      ...authHeader(),
     },
     body: JSON.stringify({ prompt }),
     signal: controller.signal,

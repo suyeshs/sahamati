@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useGitHub } from "../context/GitHubContext";
+import { authHeader } from "../lib/auth-token";
 
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
@@ -84,7 +85,9 @@ export default function GitHubFilePicker({
     try {
       const params = new URLSearchParams({ email: userEmail, sort: "updated", per_page: "20" });
       if (search) params.set("q", search);
-      const res = await fetch(`${AGENT_SERVER_URL}/api/github/repos?${params}`);
+      const res = await fetch(`${AGENT_SERVER_URL}/api/github/repos?${params}`, {
+        headers: authHeader(),
+      });
       const data = await res.json();
       setRepos((data as { repos: Repo[] }).repos ?? []);
     } catch {
@@ -104,7 +107,8 @@ export default function GitHubFilePicker({
     try {
       // Fetch repo details for default branch
       const repoRes = await fetch(
-        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}?email=${encodeURIComponent(userEmail)}`
+        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}?email=${encodeURIComponent(userEmail)}`,
+        { headers: authHeader() }
       );
       const repoData = (await repoRes.json()) as Repo;
       const defaultBranch = repoData.default_branch ?? "main";
@@ -114,7 +118,8 @@ export default function GitHubFilePicker({
 
       // Fetch branches
       const branchRes = await fetch(
-        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}/branches?email=${encodeURIComponent(userEmail)}`
+        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}/branches?email=${encodeURIComponent(userEmail)}`,
+        { headers: authHeader() }
       );
       const branchData = (await branchRes.json()) as { branches: Branch[] };
       setBranches(branchData.branches ?? []);
@@ -136,7 +141,8 @@ export default function GitHubFilePicker({
       const params = new URLSearchParams({ email: userEmail });
       if (ref) params.set("ref", ref);
       const res = await fetch(
-        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}/contents/${path}?${params}`
+        `${AGENT_SERVER_URL}/api/github/repos/${owner}/${repo}/contents/${path}?${params}`,
+        { headers: authHeader() }
       );
       if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
       const data = (await res.json()) as { contents: RepoItem[] | RepoItem };

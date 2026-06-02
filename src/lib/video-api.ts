@@ -1,7 +1,19 @@
 // Video API client for the frontend
 
+import { authHeader, appendToken } from "./auth-token";
+
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
+
+// Video routes require a verified session token. This wrapper attaches the
+// bearer header; download/thumbnail URLs (loaded by <video>/<img>) instead use
+// appendToken() since those elements cannot set an Authorization header.
+function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  return fetch(url, {
+    ...init,
+    headers: { ...(init.headers as Record<string, string> | undefined), ...authHeader() },
+  });
+}
 
 // Types matching the server-side video types
 
@@ -95,12 +107,12 @@ export interface GenerationLog {
 // ---- Video API ----
 
 export async function listVideos(limit = 50, offset = 0): Promise<{ videos: Video[]; total: number }> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos?limit=${limit}&offset=${offset}`);
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos?limit=${limit}&offset=${offset}`);
   return res.json();
 }
 
 export async function getVideo(id: string): Promise<Video> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos/${id}`);
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos/${id}`);
   const data = await res.json();
   return data.video;
 }
@@ -110,7 +122,7 @@ export async function getVideoStatus(id: string): Promise<{
   progress?: number;
   estimatedTimeRemaining?: number;
 }> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos/${id}/status`);
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos/${id}/status`);
   return res.json();
 }
 
@@ -121,16 +133,16 @@ export async function getVideoLogs(id: string, since?: number): Promise<{
   const url = since
     ? `${AGENT_SERVER_URL}/api/videos/${id}/logs?since=${since}`
     : `${AGENT_SERVER_URL}/api/videos/${id}/logs`;
-  const res = await fetch(url);
+  const res = await authedFetch(url);
   return res.json();
 }
 
 export function getVideoDownloadUrl(id: string): string {
-  return `${AGENT_SERVER_URL}/api/videos/${id}/download`;
+  return appendToken(`${AGENT_SERVER_URL}/api/videos/${id}/download`);
 }
 
 export function getVideoThumbnailUrl(id: string): string {
-  return `${AGENT_SERVER_URL}/api/videos/${id}/thumbnail`;
+  return appendToken(`${AGENT_SERVER_URL}/api/videos/${id}/thumbnail`);
 }
 
 export async function generateVideo(options: {
@@ -164,7 +176,7 @@ export async function generateVideo(options: {
     },
   };
 
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos/generate`, {
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -182,7 +194,7 @@ export async function extendVideo(id: string, prompt: string, duration: VideoDur
   status: string;
   message: string;
 }> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos/${id}/extend`, {
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos/${id}/extend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ prompt, duration }),
@@ -192,7 +204,7 @@ export async function extendVideo(id: string, prompt: string, duration: VideoDur
 }
 
 export async function deleteVideo(id: string): Promise<void> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/videos/${id}`, { method: "DELETE" });
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/videos/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error("Failed to delete video");
 }
 
@@ -202,7 +214,7 @@ export async function listTemplates(category?: string): Promise<MarketingTemplat
   const url = category
     ? `${AGENT_SERVER_URL}/api/templates?category=${encodeURIComponent(category)}`
     : `${AGENT_SERVER_URL}/api/templates`;
-  const res = await fetch(url);
+  const res = await authedFetch(url);
   const data = await res.json();
   return data.templates;
 }
@@ -210,7 +222,7 @@ export async function listTemplates(category?: string): Promise<MarketingTemplat
 // ---- Scriptwriter API ----
 
 export async function generateScript(brief: string, customizations?: any): Promise<any> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/scriptwriter/generate`, {
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/scriptwriter/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ brief, customizations }),
@@ -223,19 +235,19 @@ export async function generateScript(brief: string, customizations?: any): Promi
 // ---- Characters API ----
 
 export async function listCharacters(): Promise<CharacterProfile[]> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/characters`);
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/characters`);
   const data = await res.json();
   return data.characters;
 }
 
 export async function getCharacterPresets(): Promise<any[]> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/characters/presets`);
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/characters/presets`);
   const data = await res.json();
   return data.presets;
 }
 
 export async function createCharacterFromPreset(presetName: string): Promise<CharacterProfile> {
-  const res = await fetch(`${AGENT_SERVER_URL}/api/characters/from-preset`, {
+  const res = await authedFetch(`${AGENT_SERVER_URL}/api/characters/from-preset`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ presetName }),

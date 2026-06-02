@@ -21,6 +21,7 @@ import {
   openInSystemBrowser,
   pollAuthResult,
 } from "./tauri-auth";
+import { setAuthToken } from "../lib/auth-token";
 
 // Google Identity Services types
 declare global {
@@ -79,25 +80,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pollAbortRef = useRef<AbortController | null>(null);
 
   const completeSession = useCallback((data: AuthResponse) => {
+    setAuthToken(data.token);
     setState({
       user: data.user,
       token: data.token,
       expiresAt: data.expiresAt,
       isAuthenticated: true,
     });
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        token: data.token,
-        user: data.user,
-        expiresAt: data.expiresAt,
-      })
-    );
     setNeeds2fa(false);
     pendingSessionRef.current = null;
   }, []);
 
   const saveSession = useCallback(async (data: AuthResponse) => {
+    // Make the token available to API clients before any call: ensureUser /
+    // get2faStatus run before completeSession. The token lives only in memory,
+    // so an abandoned 2FA step simply evaporates when the WebView reloads.
+    setAuthToken(data.token);
+
     // Register user in backend database first
     try {
       await ensureUser(data.user.email, data.user.name, data.user.picture);
@@ -138,40 +137,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [completeSession]);
 
   const clearSession = useCallback(() => {
+    setAuthToken(null);
     setState({
       user: null,
       token: null,
       expiresAt: null,
       isAuthenticated: false,
     });
-    localStorage.removeItem(STORAGE_KEY);
     setNeeds2fa(false);
     pendingSessionRef.current = null;
   }, []);
 
-  // Restore session from localStorage
+  // Sessions are in-memory only and never persisted. Purge any token left on
+  // disk by an older build, then require a fresh login on each app start.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const now = Math.floor(Date.now() / 1000);
-        if (parsed.expiresAt && parsed.expiresAt > now) {
-          setState({
-            user: parsed.user,
-            token: parsed.token,
-            expiresAt: parsed.expiresAt,
-            isAuthenticated: true,
-          });
-          // Re-register user in DB in case it was recreated
-          ensureUser(parsed.user.email, parsed.user.name, parsed.user.picture).catch(() => {});
-        } else {
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
-    }
+    localStorage.removeItem(STORAGE_KEY);
     setIsLoading(false);
   }, []);
 
@@ -268,18 +248,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (msUntilRefresh <= 0 && msUntilExpiry > 0) {
       refreshToken(state.token)
         .then((data) => {
+          setAuthToken(data.token);
           setState((prev) => ({
             ...prev,
             token: data.token,
             expiresAt: data.expiresAt,
           }));
-          const stored = localStorage.getItem(STORAGE_KEY);
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            parsed.token = data.token;
-            parsed.expiresAt = data.expiresAt;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-          }
         })
         .catch(handleRefreshFailure);
       return;
@@ -291,6 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (state.token) {
         refreshToken(state.token)
           .then((data) => {
+            setAuthToken(data.token);
             setState((prev) => ({
               ...prev,
               token: data.token,

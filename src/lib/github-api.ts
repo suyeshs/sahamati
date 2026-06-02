@@ -1,3 +1,5 @@
+import { authHeader } from "./auth-token";
+
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
 
@@ -18,7 +20,8 @@ export async function startGitHubOAuth(
   email: string
 ): Promise<{ authUrl: string; sessionId: string }> {
   const res = await fetch(
-    `${AGENT_SERVER_URL}/auth/github/start?email=${encodeURIComponent(email)}`
+    `${AGENT_SERVER_URL}/auth/github/start?email=${encodeURIComponent(email)}`,
+    { headers: authHeader() }
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to start GitHub OAuth" }));
@@ -40,7 +43,8 @@ export async function getGitHubStatus(
   email: string
 ): Promise<{ connected: boolean; username?: string }> {
   const res = await fetch(
-    `${AGENT_SERVER_URL}/auth/github/status?email=${encodeURIComponent(email)}`
+    `${AGENT_SERVER_URL}/auth/github/status?email=${encodeURIComponent(email)}`,
+    { headers: authHeader() }
   );
   if (!res.ok) return { connected: false };
   return res.json();
@@ -49,7 +53,7 @@ export async function getGitHubStatus(
 export async function disconnectGitHub(email: string): Promise<void> {
   await fetch(`${AGENT_SERVER_URL}/auth/github/disconnect`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeader() },
     body: JSON.stringify({ email }),
   });
 }
@@ -68,7 +72,9 @@ export async function listGitHubRepos(
     params.set("q", options.q);
   }
 
-  const res = await fetch(`${AGENT_SERVER_URL}/api/github/repos?${params.toString()}`);
+  const res = await fetch(`${AGENT_SERVER_URL}/api/github/repos?${params.toString()}`, {
+    headers: authHeader(),
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Failed to fetch repos" }));
     throw new Error((err as { error: string }).error);
