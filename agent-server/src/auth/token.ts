@@ -81,3 +81,33 @@ export async function verifyIdToken(
 
   return claims;
 }
+
+/**
+ * Verify a Google ID token presented on an ordinary API request (not the login
+ * handshake). Identical to verifyIdToken but without the one-time login nonce —
+ * jwtVerify still enforces the signature, issuer, audience, and expiry, and we
+ * re-check the verified-email and domain claims. This is the trust anchor for
+ * authMiddleware: identity comes from here, never from a client-supplied header.
+ */
+export async function verifySessionToken(
+  idToken: string
+): Promise<GoogleIdTokenPayload> {
+  const { payload } = await jwtVerify(idToken, JWKS, {
+    issuer: ["https://accounts.google.com", "accounts.google.com"],
+    audience: AUTH_CONFIG.googleClientId,
+  });
+
+  const claims = payload as unknown as GoogleIdTokenPayload;
+
+  if (!claims.email_verified) {
+    throw new Error("Email not verified");
+  }
+
+  if (claims.hd !== AUTH_CONFIG.allowedDomain) {
+    throw new Error(
+      `Access restricted to @${AUTH_CONFIG.allowedDomain} accounts. Got: @${claims.hd ?? "unknown"}`
+    );
+  }
+
+  return claims;
+}

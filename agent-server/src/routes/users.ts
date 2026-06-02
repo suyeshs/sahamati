@@ -1,18 +1,24 @@
 import { Hono } from "hono";
 import { ensureUser, getUserByEmail, updateUserRole, listUsers } from "../db/repositories/user-repo.js";
 import { pullFromCloud } from "../sync/sync-engine.js";
+import { authMiddleware, getVerifiedClaims } from "../middleware/auth-middleware.js";
+import type { AppEnv } from "../types.js";
 
-const users = new Hono();
+const users = new Hono<AppEnv>();
 
-// Ensure user exists (called after login)
+// Ensure user exists (called after login). This is the bootstrap call, so it
+// cannot require an existing user row — but it still requires a verified Google
+// token, and the user's identity is taken from the token's claims, not the body.
 // Also triggers a cloud pull so any web-created users, project memberships,
 // and documents are synced down to the desktop app.
 users.post("/api/users/ensure", async (c) => {
-  const { email, name, picture } = await c.req.json();
-
-  if (!email || !name) {
-    return c.json({ error: "email and name are required" }, 400);
+  const claims = await getVerifiedClaims(c);
+  if (!claims) {
+    return c.json({ error: "Authentication required" }, 401);
   }
+  const email = claims.email;
+  const name = claims.name;
+  const picture = claims.picture;
 
   // Pull from cloud first so we get any users/memberships created via web portal
   const cloudUrl = process.env.CLOUDFLARE_SYNC_URL;
@@ -31,29 +37,23 @@ users.post("/api/users/ensure", async (c) => {
   return c.json({ user, synced: pulled });
 });
 
-// Get current user
-users.get("/api/users/me", (c) => {
-  const email = c.req.query("email") || c.req.header("X-User-Email");
-  if (!email) {
-    return c.json({ error: "email required" }, 400);
-  }
-
-  const user = getUserByEmail(email);
-  if (!user) {
-    return c.json({ error: "User not found" }, 404);
-  }
-
-  return c.json({ user });
+// Get current user — identity from the verified token.
+users.get("/api/users/me", authMiddleware, (c) => {
+  return c.json({ user: c.get("user") });
 });
 
 // List all users (for adding members)
-users.get("/api/users", (c) => {
+users.get("/api/users", authMiddleware, (c) => {
   const allUsers = listUsers();
   return c.json({ users: allUsers });
 });
 
 // Update user role (admin only)
-users.put("/api/users/:id/role", async (c) => {
+users.put("/api/users/:id/role", authMiddleware, async (c) => {
+  if (c.get("userRole") !== "admin") {
+    return c.json({ error: "Admin role required" }, 403);
+  }
+
   const { id } = c.req.param();
   const { role } = await c.req.json();
 

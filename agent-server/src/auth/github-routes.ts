@@ -16,15 +16,17 @@ import {
   removeGitHubToken,
   hasGitHubToken,
 } from "./github-store.js";
+import { authMiddleware } from "../middleware/auth-middleware.js";
+import type { AppEnv } from "../types.js";
 
-const githubRoutes = new Hono();
+const githubRoutes = new Hono<AppEnv>();
 
 /**
  * GET /auth/github/start
  * Initiates GitHub OAuth flow. Accepts ?email= query param to associate the token.
  * Returns { authUrl, sessionId } for the client to open and poll.
  */
-githubRoutes.get("/auth/github/start", (c) => {
+githubRoutes.get("/auth/github/start", authMiddleware, (c) => {
   if (!AUTH_CONFIG.githubClientId || !AUTH_CONFIG.githubClientSecret) {
     return c.json(
       { error: "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET." },
@@ -32,10 +34,7 @@ githubRoutes.get("/auth/github/start", (c) => {
     );
   }
 
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
+  const email = c.get("userEmail");
 
   const sessionId = randomUUID();
   // Encode email into the state so the callback can associate the token
@@ -207,12 +206,8 @@ githubRoutes.get("/auth/github/poll/:sessionId", (c) => {
  * GET /auth/github/status
  * Check if a user has GitHub connected. Accepts ?email= query param.
  */
-githubRoutes.get("/auth/github/status", (c) => {
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
-
+githubRoutes.get("/auth/github/status", authMiddleware, (c) => {
+  const email = c.get("userEmail");
   const connection = getGitHubToken(email);
   if (connection) {
     return c.json({ connected: true, username: connection.username });
@@ -225,13 +220,8 @@ githubRoutes.get("/auth/github/status", (c) => {
  * POST /auth/github/disconnect
  * Remove stored GitHub token for a user.
  */
-githubRoutes.post("/auth/github/disconnect", async (c) => {
-  const body = await c.req.json<{ email?: string }>();
-  if (!body.email) {
-    return c.json({ error: "email is required" }, 400);
-  }
-
-  removeGitHubToken(body.email);
+githubRoutes.post("/auth/github/disconnect", authMiddleware, async (c) => {
+  removeGitHubToken(c.get("userEmail"));
   return c.json({ status: "ok" });
 });
 

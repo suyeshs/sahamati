@@ -27,8 +27,10 @@ import type {
   UpdateCharacterRequest,
 } from "../types/video.js";
 import { PRESET_PERSONAS, getPresetByName } from "../types/video.js";
+import { authMiddleware } from "../middleware/auth-middleware.js";
+import type { AppEnv } from "../types.js";
 
-const videos = new Hono();
+const videos = new Hono<AppEnv>();
 
 // Ensure video directories exist on first request
 let dirsInitialized = false;
@@ -39,6 +41,11 @@ videos.use("*", async (c, next) => {
   }
   await next();
 });
+
+// All video routes require a verified session token. The download and thumbnail
+// endpoints are loaded directly by <video>/<img> elements, which cannot set an
+// Authorization header, so they pass the token via the ?token= query parameter.
+videos.use("*", authMiddleware);
 
 // ---- Video CRUD ----
 

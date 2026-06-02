@@ -5,7 +5,7 @@ import { readdirSync, readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { runOrchestrator, runDirectAgent } from "./orchestrator.js";
-import type { AgentRunRequest, GeneratedDoc, NewOpenClawAgentRequest, UpdateOpenClawAgentRequest } from "./types.js";
+import type { AgentRunRequest, AppEnv, GeneratedDoc, NewOpenClawAgentRequest, UpdateOpenClawAgentRequest } from "./types.js";
 import authRoutes from "./auth/routes.js";
 import githubAuthRoutes from "./auth/github-routes.js";
 import githubApi from "./routes/github-api.js";
@@ -19,6 +19,7 @@ import secretsRoutes from "./routes/secrets.js";
 import deploymentRoutes from "./routes/deployments.js";
 import localDocsRoutes from "./routes/local-docs.js";
 import { startSessionCleanup } from "./auth/session-store.js";
+import { authMiddleware } from "./middleware/auth-middleware.js";
 import { getGitHubToken } from "./auth/github-store.js";
 import * as openclawRunner from "./openclaw/runner.js";
 import { searchSkills as searchClawHubSkills, getSkillDetail } from "./openclaw/skill-hub.js";
@@ -28,7 +29,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = process.env.__SAHAMATI_ROOT || resolve(__dirname, "../..");
 const GENERATED_DIR = join(PROJECT_ROOT, "docs/generated");
 
-const app = new Hono();
+const app = new Hono<AppEnv>();
 
 app.use(
   "/*",
@@ -57,6 +58,13 @@ app.route("/", localDocsRoutes);
 
 startSessionCleanup();
 
+// Require a verified session token for the agent, OpenClaw, and generated-doc
+// routes. These were previously unauthenticated; the SSE run endpoints accept
+// the token via the Authorization header (they are fetch-based, not EventSource).
+app.use("/api/agent/*", authMiddleware);
+app.use("/api/openclaw/*", authMiddleware);
+app.use("/api/docs/*", authMiddleware);
+
 // Health check
 app.get("/health", (c) => {
   const openclawAgents = openclawRunner.listAgents();
@@ -71,7 +79,9 @@ app.get("/health", (c) => {
 // Run orchestrator or specific agent via SSE
 app.post("/api/agent/run", async (c) => {
   const body = await c.req.json<AgentRunRequest>();
-  const { prompt, agentType, openclawAgent, sessionId, userEmail } = body;
+  const { prompt, agentType, openclawAgent, sessionId } = body;
+  // Identity comes from the verified token (set by authMiddleware), not the body.
+  const userEmail = c.get("userEmail");
 
   if (!prompt) {
     return c.json({ error: "prompt is required" }, 400);

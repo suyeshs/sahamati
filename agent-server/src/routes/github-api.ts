@@ -1,8 +1,14 @@
 import { Hono } from "hono";
 import { AUTH_CONFIG } from "../auth/config.js";
 import { getGitHubToken } from "../auth/github-store.js";
+import { authMiddleware } from "../middleware/auth-middleware.js";
+import type { AppEnv } from "../types.js";
 
-const githubApi = new Hono();
+const githubApi = new Hono<AppEnv>();
+
+// Every route here dereferences a per-user GitHub token, so the caller's
+// identity must be the verified token's user — never a client-supplied email.
+githubApi.use("*", authMiddleware);
 
 /**
  * GET /repos
@@ -10,11 +16,7 @@ const githubApi = new Hono();
  * Supports ?sort=updated&per_page=30&page=1&type=all
  */
 githubApi.get("/repos", async (c) => {
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
-
+  const email = c.get("userEmail");
   const connection = getGitHubToken(email);
   if (!connection) {
     return c.json({ error: "GitHub not connected. Please connect your GitHub account first." }, 401);
@@ -99,11 +101,7 @@ githubApi.get("/repos", async (c) => {
  * Get details for a specific repo.
  */
 githubApi.get("/repos/:owner/:repo", async (c) => {
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
-
+  const email = c.get("userEmail");
   const connection = getGitHubToken(email);
   if (!connection) {
     return c.json({ error: "GitHub not connected" }, 401);
@@ -142,11 +140,7 @@ githubApi.get("/repos/:owner/:repo", async (c) => {
  * IMPORTANT: Must be registered BEFORE the contents/* wildcard route.
  */
 githubApi.get("/repos/:owner/:repo/branches", async (c) => {
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
-
+  const email = c.get("userEmail");
   const connection = getGitHubToken(email);
   if (!connection) {
     return c.json({ error: "GitHub not connected" }, 401);
@@ -189,11 +183,7 @@ githubApi.get("/repos/:owner/:repo/branches", async (c) => {
  * NOTE: This wildcard route must come AFTER specific sub-routes like /branches.
  */
 githubApi.get("/repos/:owner/:repo/contents/*", async (c) => {
-  const email = c.req.query("email");
-  if (!email) {
-    return c.json({ error: "email query parameter is required" }, 400);
-  }
-
+  const email = c.get("userEmail");
   const connection = getGitHubToken(email);
   if (!connection) {
     return c.json({ error: "GitHub not connected" }, 401);

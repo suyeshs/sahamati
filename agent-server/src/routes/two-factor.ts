@@ -1,39 +1,35 @@
 import { Hono } from "hono";
 import {
-  getUserByEmail,
   setTotpSecret,
   enableTotp,
   disableTotp,
 } from "../db/repositories/user-repo.js";
 import { generateTotpSecret, buildTotpUri, verifyTotpCode } from "../auth/totp.js";
+import { authMiddleware } from "../middleware/auth-middleware.js";
+import type { AppEnv } from "../types.js";
 
-const twoFactor = new Hono();
+const twoFactor = new Hono<AppEnv>();
+
+// All 2FA routes require a verified session token; the account they act on is
+// the token's own user, never an email supplied in the request body.
+twoFactor.use("/api/2fa/*", authMiddleware);
 
 /**
- * GET /api/2fa/status?email=...
- * Returns whether 2FA is enabled for the user.
+ * GET /api/2fa/status
+ * Returns whether 2FA is enabled for the authenticated user.
  */
 twoFactor.get("/api/2fa/status", (c) => {
-  const email = c.req.query("email") || c.req.header("X-User-Email");
-  if (!email) return c.json({ error: "email required" }, 400);
-
-  const user = getUserByEmail(email);
-  if (!user) return c.json({ error: "User not found" }, 404);
-
+  const user = c.get("user");
   return c.json({ enabled: !!user.totp_enabled });
 });
 
 /**
  * POST /api/2fa/setup
  * Generate a new TOTP secret and return the provisioning URI.
- * Body: { email: string }
  */
 twoFactor.post("/api/2fa/setup", async (c) => {
-  const { email } = await c.req.json<{ email: string }>();
-  if (!email) return c.json({ error: "email required" }, 400);
-
-  const user = getUserByEmail(email);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  const email = c.get("userEmail");
+  const user = c.get("user");
 
   if (user.totp_enabled) {
     return c.json({ error: "2FA is already enabled. Disable it first to reconfigure." }, 400);
@@ -54,11 +50,10 @@ twoFactor.post("/api/2fa/setup", async (c) => {
  * Body: { email: string, code: string }
  */
 twoFactor.post("/api/2fa/verify", async (c) => {
-  const { email, code } = await c.req.json<{ email: string; code: string }>();
-  if (!email || !code) return c.json({ error: "email and code required" }, 400);
+  const { code } = await c.req.json<{ code: string }>();
+  if (!code) return c.json({ error: "code required" }, 400);
 
-  const user = getUserByEmail(email);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  const user = c.get("user");
 
   if (!user.totp_secret) {
     return c.json({ error: "No 2FA setup in progress. Call /api/2fa/setup first." }, 400);
@@ -81,11 +76,10 @@ twoFactor.post("/api/2fa/verify", async (c) => {
  * Body: { email: string, code: string }
  */
 twoFactor.post("/api/2fa/validate", async (c) => {
-  const { email, code } = await c.req.json<{ email: string; code: string }>();
-  if (!email || !code) return c.json({ error: "email and code required" }, 400);
+  const { code } = await c.req.json<{ code: string }>();
+  if (!code) return c.json({ error: "code required" }, 400);
 
-  const user = getUserByEmail(email);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  const user = c.get("user");
 
   if (!user.totp_enabled || !user.totp_secret) {
     return c.json({ error: "2FA is not enabled for this account." }, 400);
@@ -105,11 +99,10 @@ twoFactor.post("/api/2fa/validate", async (c) => {
  * Body: { email: string, code: string }
  */
 twoFactor.post("/api/2fa/disable", async (c) => {
-  const { email, code } = await c.req.json<{ email: string; code: string }>();
-  if (!email || !code) return c.json({ error: "email and code required" }, 400);
+  const { code } = await c.req.json<{ code: string }>();
+  if (!code) return c.json({ error: "code required" }, 400);
 
-  const user = getUserByEmail(email);
-  if (!user) return c.json({ error: "User not found" }, 404);
+  const user = c.get("user");
 
   if (!user.totp_enabled || !user.totp_secret) {
     return c.json({ error: "2FA is not enabled." }, 400);
