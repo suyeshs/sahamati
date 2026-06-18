@@ -17,6 +17,7 @@ on:
       - 'src-tauri/**'
       - 'agent-server/**'
       - 'package.json'
+      - 'bun.lock'
       - '.github/workflows/windows-build.yml'
 
 permissions:

@@ -66,9 +66,6 @@ agent-server/agent-server-*
 # Local encrypted SQLite + runtime state (PID file, sync log, projects)
 data/
 
-# Bun
-bun.lock
-
 # Docker
 docker-compose.override.yml
 
