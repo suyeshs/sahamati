@@ -67,14 +67,15 @@ jobs:
         shell: pwsh
         run: Get-ChildItem src-tauri/binaries
 
-      - name: Build Tauri app (msi + nsis)
-        run: bun run tauri build
+      - name: Build Tauri app (NSIS installer)
+        # tauri.windows.conf.json pins bundle targets to ["nsis"]; --bundles nsis
+        # makes that explicit so a config drift can't silently pull in the WiX/MSI
+        # toolchain on the runner.
+        run: bun run tauri build --bundles nsis
 
-      - name: Upload installers
+      - name: Upload NSIS installer
         uses: actions/upload-artifact@v4
         with:
-          name: sahamati-windows-installers
+          name: sahamati-windows-nsis
           if-no-files-found: error
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
+          path: src-tauri/target/release/bundle/nsis/*.exe
