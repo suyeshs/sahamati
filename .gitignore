@@ -100,3 +100,6 @@ agentic guardrails
 # Cloudflare Wrangler / Miniflare local dev state
 **/.wrangler/
 site/
+
+# Sample/regulated data — never commit (FI payloads, statements, etc.)
+sample_bank_statement.pdf
