@@ -1,18 +1,19 @@
-import { authHeader } from "./auth-token";
+import { authHeader, handleAuthFailure } from "./auth-token";
 
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
 
 // All agent/openclaw/docs routes require a verified session token. This wrapper
 // attaches the bearer header to every request; callers pass a server-relative path.
+// A 401 tears the session down via handleAuthFailure.
 function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
   return fetch(`${AGENT_SERVER_URL}${path}`, {
     ...init,
     headers: { ...(init.headers as Record<string, string> | undefined), ...authHeader() },
-  });
+  }).then(handleAuthFailure);
 }
 
-export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "evernote" | "video" | "orchestrator" | "openclaw";
+export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "evernote" | "security" | "owasp" | "vapt" | "video" | "orchestrator" | "openclaw";
 
 export interface GitHubFileRef {
   owner: string;

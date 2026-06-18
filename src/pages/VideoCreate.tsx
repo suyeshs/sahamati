@@ -12,8 +12,8 @@ import {
   type GenerationLog,
   type AspectRatio,
   type VideoDuration,
-  type TransitionType,
 } from "../lib/video-api";
+import { notify } from "../lib/notify";
 
 type Tab = "templates" | "scriptwriter" | "custom";
 
@@ -45,7 +45,7 @@ export default function VideoCreate() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generationComplete, setGenerationComplete] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     listTemplates().then(setTemplates).finally(() => setLoading(false));
@@ -78,10 +78,12 @@ export default function VideoCreate() {
         if (status.video.status === "completed") {
           setGenerationComplete(true);
           setGenerating(false);
+          notify("Video ready", "Your video generation finished.");
           if (pollRef.current) clearInterval(pollRef.current);
         } else if (status.video.status === "failed") {
           setGenerationError(status.video.error || "Generation failed");
           setGenerating(false);
+          notify("Video generation failed", status.video.error || "Generation failed");
           if (pollRef.current) clearInterval(pollRef.current);
         }
       } catch {

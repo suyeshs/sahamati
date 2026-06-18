@@ -1,36 +1,121 @@
 /* ============================================
-   Neumorphic Design System - Sahamati
-   Base: #e0e5ec | Accent: #4a6cf7
+   Sahamati — flat design system (sahamati-sync portal parity)
+   Replicated from the cloud portal: indigo brand, gray-50 canvas,
+   white cards with gray borders. Token-driven; the --neu-* composites
+   below are intentionally flat (border ring + soft shadow) so every
+   surface in the app adopts the portal look without per-component edits.
    ============================================ */
 
 :root {
-  --bg: #e0e5ec;
-  --bg-dark: #c8ccd3;
+  color-scheme: light;
+
+  /* Page canvas vs. raised surfaces */
+  --canvas: #f9fafb;       /* gray-50 — page background */
+  --bg: #ffffff;           /* white — card / panel / control surface */
+  --bg-dark: #f3f4f6;      /* gray-100 — inset / table head / inline code */
+  --bg-light: #ffffff;
+  --bg-main: #ffffff;
+  --bg-hover: rgba(79, 70, 229, 0.05);
+  --border: #e5e7eb;       /* gray-200 */
+
+  /* Soft-shadow stops (a few rules compose these directly) */
   --shadow-light: #ffffff;
-  --shadow-dark: #a3b1c6;
-  --accent: #4a6cf7;
-  --accent-hover: #3a5ce0;
-  --text: #2d3436;
-  --text-muted: #636e72;
-  --text-light: #b2bec3;
-  --success: #00b894;
-  --danger: #e04a4a;
-  --warning: #fdcb6e;
-  --radius: 16px;
-  --radius-sm: 10px;
-  --neu-raised: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
-  --neu-raised-sm: 3px 3px 6px var(--shadow-dark), -3px -3px 6px var(--shadow-light);
-  --neu-pressed: inset 3px 3px 6px var(--shadow-dark), inset -3px -3px 6px var(--shadow-light);
-  --neu-flat: 2px 2px 5px var(--shadow-dark), -2px -2px 5px var(--shadow-light);
+  --shadow-dark: #e5e7eb;
+
+  /* Brand — indigo (portal `brand` palette) */
+  --brand-50: #eef2ff;
+  --brand-100: #e0e7ff;
+  --brand-200: #c7d2fe;
+  --navy: #1e1b4b;         /* indigo-950 — used for overlay tints */
+  --trust-blue: #4338ca;
+  --accent: #4f46e5;       /* indigo-600 — primary action / CTA */
+  --accent-hover: #4338ca; /* indigo-700 */
+  --accent-soft: #6366f1;  /* indigo-500 */
+  --accent-rgb: 79, 70, 229;
+
+  /* Text */
+  --text: #111827;         /* gray-900 */
+  --text-main: #111827;
+  --text-muted: #6b7280;   /* gray-500 */
+  --text-light: #9ca3af;   /* gray-400 */
+
+  /* Status */
+  --success: #16a34a;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-light: #ef4444;
+  --danger-rgb: 220, 38, 38;
+  --warning: #d97706;
+  --status-running: #4f46e5;
+
+  /* Chrome — nav rail (portal white nav) */
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #374151;        /* gray-700 */
+  --sidebar-text-strong: #111827;
+  --sidebar-muted: #6b7280;
+  --sidebar-hover: #f3f4f6;       /* gray-100 */
+  --sidebar-active-bg: #eef2ff;   /* brand-50 */
+
+  /* Code blocks (portal: gray-800 surface) */
+  --code-bg: #1f2937;
+  --code-text: #e5e7eb;
+
+  /* Misc semantic */
+  --badge-text: #b45309;          /* amber-700 */
+  --github-bg: #24292e;
+  --github-bg-hover: #2f363d;
+  --error-bg: #fef2f2;
+  --private-bg: #fef3c7;
+  --private-text: #92400e;
+
+  --radius: 12px;          /* rounded-xl — cards/panels */
+  --radius-sm: 8px;        /* rounded-lg — buttons/inputs */
+  --titlebar-h: 38px;
+
+  /* Flat composites — border ring + soft shadow (replaces neumorphism).
+     Kept under the --neu-* names so existing rules pick them up untouched. */
+  --neu-raised: 0 0 0 1px var(--border), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --neu-raised-sm: 0 0 0 1px var(--border);
+  --neu-pressed: inset 0 0 0 1px var(--border);
+  --neu-flat: 0 0 0 1px var(--brand-200), 0 4px 12px rgba(16, 24, 40, 0.08);
+
+  /* Motion */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Root layout: sidebar + content */
+/* Dark mode intentionally retired in the portal-parity redesign: the
+   theme toggle still sets data-theme="dark" but resolves to the light
+   tokens above, so the app stays light-only and on-brand. */
+[data-theme="dark"] {
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Root layout: sidebar + content (sits below the custom title bar) */
 .app-layout {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - var(--titlebar-h));
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
-  background: var(--bg);
+  background: var(--canvas);
+}
+
+/* The flat portal look uses opaque surfaces, so the Tauri window no longer
+   goes transparent for macOS vibrancy — the canvas is solid gray-50. */
+body.tauri,
+body.tauri #root,
+body.tauri .app-layout {
+  background: var(--canvas);
 }
 
 /* ============================================
@@ -39,29 +124,39 @@
 .sidebar {
   width: 240px;
   min-width: 240px;
-  background: #2d3436;
-  color: #dfe6e9;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
   padding: 1.25rem 0;
-  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.15);
+  border-right: 1px solid var(--border);
 }
 
 .sidebar-header {
   padding: 0 1.25rem 1.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--border);
 }
 
 .sidebar-header h1 {
   font-size: 1.25rem;
   margin: 0;
-  color: #fff;
+  color: var(--sidebar-text-strong);
   font-weight: 700;
+}
+
+.sidebar-logo {
+  display: block;
+  width: 170px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 0.5rem;
 }
 
 .sidebar-subtitle {
   font-size: 0.75rem;
-  opacity: 0.5;
+  color: var(--text-muted);
 }
 
 .sidebar-nav {
@@ -76,30 +171,30 @@
 .sidebar-link {
   display: block;
   padding: 0.65rem 1rem;
-  color: #b2bec3;
+  color: var(--sidebar-muted);
   text-decoration: none;
   font-size: 0.9rem;
   border-radius: var(--radius-sm);
-  transition: all 0.2s;
+  transition: background 0.2s var(--ease-out), color 0.2s var(--ease-out);
 }
 
 .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text-strong);
 }
 
 .sidebar-link.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-text-strong);
   font-weight: 600;
-  box-shadow: 0 2px 10px rgba(74, 108, 247, 0.35);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 /* Sidebar user section */
 .sidebar-user {
   margin-top: auto;
   padding: 1rem 1.25rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -109,7 +204,7 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.1);
 }
 
 .sidebar-user-info {
@@ -119,33 +214,33 @@
 
 .sidebar-user-name {
   font-size: 0.85rem;
-  color: #fff;
+  color: var(--sidebar-text-strong);
   font-weight: 600;
 }
 
 .sidebar-user-email {
   font-size: 0.7rem;
-  color: #636e72;
+  color: var(--sidebar-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .sidebar-logout-btn {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--sidebar-hover);
   border: none;
-  color: #b2bec3;
+  color: var(--sidebar-muted);
   padding: 0.4rem 0.75rem;
   border-radius: 8px;
   font-size: 0.8rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s var(--ease-out);
   align-self: flex-start;
 }
 
 .sidebar-logout-btn:hover {
-  background: rgba(224, 74, 74, 0.2);
-  color: #ff7675;
+  background: rgba(var(--danger-rgb), 0.2);
+  color: var(--danger-light);
 }
 
 /* ============================================
@@ -155,6 +250,11 @@
   flex: 1;
   overflow-y: auto;
   padding: 2rem;
+  background: var(--canvas);
+}
+
+.route-view {
+  min-height: 100%;
 }
 
 /* Page styles */
@@ -257,13 +357,13 @@
 
 .doc-link:hover {
   color: var(--accent);
-  background: rgba(74, 108, 247, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .doc-link.active {
   color: var(--accent);
   font-weight: 600;
-  background: rgba(74, 108, 247, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .doc-content {
@@ -328,8 +428,8 @@
 }
 
 .md-viewer pre {
-  background: #2d3436;
-  color: #dfe6e9;
+  background: var(--code-bg);
+  color: var(--code-text);
   padding: 1.25rem;
   border-radius: var(--radius-sm);
   overflow-x: auto;
@@ -397,7 +497,7 @@
 .template-btn.active {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(74, 108, 247, 0.35);
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.35);
 }
 
 .template-preview {
@@ -533,7 +633,7 @@
 }
 
 .integration-card-header:hover {
-  background: rgba(74, 108, 247, 0.03);
+  background: rgba(var(--accent-rgb), 0.03);
 }
 
 .integration-card-icon {
@@ -746,7 +846,7 @@
 .tab-btn.active {
   color: #fff;
   background: var(--accent);
-  box-shadow: 0 2px 8px rgba(74, 108, 247, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
   font-weight: 600;
 }
 
@@ -807,8 +907,27 @@
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
   cursor: pointer;
-  transition: all 0.2s;
   font-weight: 600;
+  background: var(--bg);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: box-shadow 0.18s var(--ease-out), transform 0.18s var(--ease-spring),
+    background 0.18s var(--ease-out), color 0.18s var(--ease-out);
+}
+
+.btn:hover:not(:disabled) {
+  box-shadow: var(--neu-flat);
+  transform: translateY(-1px);
+}
+
+.btn:active:not(:disabled) {
+  box-shadow: var(--neu-pressed);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn:disabled {
@@ -819,16 +938,18 @@
 .btn-primary {
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(74, 108, 247, 0.35);
+  box-shadow: 0 2px 10px rgba(var(--accent-rgb), 0.35);
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 4px 15px rgba(74, 108, 247, 0.45);
+  box-shadow: 0 6px 18px rgba(var(--accent-rgb), 0.45);
+  transform: translateY(-1px);
 }
 
 .btn-primary:active:not(:disabled) {
-  box-shadow: 0 1px 5px rgba(74, 108, 247, 0.3);
+  box-shadow: 0 1px 5px rgba(var(--accent-rgb), 0.3);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-secondary {
@@ -849,12 +970,13 @@
 .btn-danger {
   background: var(--danger);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(224, 74, 74, 0.35);
+  box-shadow: 0 2px 10px rgba(var(--danger-rgb), 0.35);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #c03a3a;
-  box-shadow: 0 4px 15px rgba(224, 74, 74, 0.45);
+  background: var(--danger-hover);
+  box-shadow: 0 6px 18px rgba(var(--danger-rgb), 0.45);
+  transform: translateY(-1px);
 }
 
 /* ============================================
@@ -909,7 +1031,7 @@
 }
 
 .agent-status.running {
-  color: #e17055;
+  color: var(--status-running);
 }
 
 .agent-status.completed {
@@ -1285,7 +1407,7 @@
 }
 
 .ghfp-file-item.selected {
-  background: rgba(74, 108, 247, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .ghfp-file-check input {
@@ -1413,11 +1535,11 @@
 }
 
 .document-review-item:hover {
-  background: rgba(74, 108, 247, 0.04);
+  background: rgba(var(--accent-rgb), 0.04);
 }
 
 .document-review-item.active {
-  background: rgba(74, 108, 247, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 .doc-item-info {
@@ -1445,7 +1567,7 @@
 
 .badge-review {
   background: var(--warning);
-  color: #856404;
+  color: var(--badge-text);
 }
 
 .badge-confidence {
@@ -1475,7 +1597,7 @@
   height: 100vh;
   color: var(--text-muted);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
+  background: var(--canvas);
 }
 
 .loading-spinner {
@@ -1513,13 +1635,13 @@
   align-items: center;
   justify-content: center;
   height: 100vh;
-  background: var(--bg);
+  background: var(--canvas);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 .login-card {
   background: var(--bg);
-  border-radius: 24px;
+  border-radius: var(--radius);
   box-shadow: var(--neu-raised);
   width: 420px;
   overflow: hidden;
@@ -1645,7 +1767,7 @@
   padding: 0.6rem 1.2rem;
   border: none;
   border-radius: var(--radius-sm);
-  background: #24292e;
+  background: var(--github-bg);
   color: #fff;
   font-size: 0.9rem;
   font-weight: 600;
@@ -1654,7 +1776,7 @@
 }
 
 .btn-github:hover:not(:disabled) {
-  background: #2f363d;
+  background: var(--github-bg-hover);
 }
 
 .btn-github:disabled {
@@ -1690,7 +1812,7 @@
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
-  background: #fef2f2;
+  background: var(--error-bg);
   color: var(--danger);
   font-size: 0.85rem;
 }
@@ -1737,11 +1859,11 @@
 }
 
 .repo-item:hover {
-  background: rgba(74, 108, 247, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 .repo-item.selected {
-  background: rgba(74, 108, 247, 0.12);
+  background: rgba(var(--accent-rgb), 0.12);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
@@ -1764,8 +1886,8 @@
 }
 
 .repo-badge.private {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--private-bg);
+  color: var(--private-text);
 }
 
 .repo-item-desc {
@@ -1849,51 +1971,7 @@
   font-size: 0.8rem;
 }
 
-/* --- Buttons --- */
-.btn {
-  padding: 0.5rem 1.25rem;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-size: 0.9rem;
-  cursor: pointer;
-  background: var(--bg);
-  box-shadow: var(--neu-raised-sm);
-  color: var(--text);
-  transition: all 0.15s;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.btn:hover {
-  box-shadow: var(--neu-flat);
-}
-
-.btn:active {
-  box-shadow: var(--neu-pressed);
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: white;
-  box-shadow: 3px 3px 6px rgba(74, 108, 247, 0.3), -3px -3px 6px var(--shadow-light);
-}
-
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background: var(--danger);
-  color: white;
-}
-
+/* --- Buttons (danger-small variant; base styles defined above) --- */
 .btn-danger-small {
   padding: 0.25rem 0.75rem;
   font-size: 0.8rem;
@@ -2235,7 +2313,7 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--text-light);
+  color: var(--sidebar-muted);
   font-weight: 600;
 }
 
@@ -2246,17 +2324,18 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-light);
+  background: var(--sidebar-hover);
+  color: var(--sidebar-muted);
   text-decoration: none;
   font-size: 1rem;
   line-height: 1;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-out);
 }
 
 .sidebar-add-btn:hover {
   background: var(--accent);
-  color: white;
+  color: #fff;
+  transform: scale(1.1);
 }
 
 .sidebar-projects {
@@ -2270,20 +2349,20 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.4rem 1.25rem;
-  color: #b2bec3;
+  color: var(--sidebar-muted);
   text-decoration: none;
   font-size: 0.85rem;
-  transition: all 0.15s;
+  transition: all 0.15s var(--ease-out);
 }
 
 .sidebar-project-link:hover {
-  color: white;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--sidebar-text-strong);
+  background: var(--sidebar-hover);
 }
 
 .sidebar-project-link.active {
-  color: white;
-  background: rgba(74, 108, 247, 0.2);
+  color: var(--sidebar-text-strong);
+  background: var(--sidebar-active-bg);
   border-left: 3px solid var(--accent);
 }
 
@@ -2322,15 +2401,15 @@
 .sidebar-back-link {
   display: block;
   padding: 0.75rem 1.25rem;
-  color: var(--text-light);
+  color: var(--sidebar-muted);
   text-decoration: none;
   font-size: 0.85rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--border);
   transition: color 0.15s;
 }
 
 .sidebar-back-link:hover {
-  color: white;
+  color: var(--sidebar-text-strong);
 }
 
 /* --- Project Dashboard --- */
@@ -2477,7 +2556,7 @@
 
 .phase-pill--in-progress {
   background: var(--accent);
-  box-shadow: 3px 3px 6px rgba(74, 108, 247, 0.3), -3px -3px 6px var(--shadow-light);
+  box-shadow: 3px 3px 6px rgba(var(--accent-rgb), 0.3), -3px -3px 6px var(--shadow-light);
 }
 
 .phase-pill--in-progress .phase-pill-name,
@@ -2491,8 +2570,8 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 3px 3px 6px rgba(74, 108, 247, 0.3), -3px -3px 6px var(--shadow-light); }
-  50% { box-shadow: 3px 3px 12px rgba(74, 108, 247, 0.5), -3px -3px 12px var(--shadow-light); }
+  0%, 100% { box-shadow: 3px 3px 6px rgba(var(--accent-rgb), 0.3), -3px -3px 6px var(--shadow-light); }
+  50% { box-shadow: 3px 3px 12px rgba(var(--accent-rgb), 0.5), -3px -3px 12px var(--shadow-light); }
 }
 
 .phase-pill--in-progress:not(.phase-pill--selected) {
@@ -2550,12 +2629,7 @@
   border-radius: var(--radius);
   background: var(--bg);
   box-shadow: var(--neu-pressed);
-  animation: slideDown 0.2s ease-out;
-}
-
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  animation: slideDown 0.2s var(--ease-out);
 }
 
 .phase-detail-header {
@@ -2629,7 +2703,7 @@
 }
 
 .phase-doc-item.selected {
-  background: rgba(74, 108, 247, 0.1);
+  background: rgba(var(--accent-rgb), 0.1);
 }
 
 .phase-doc-title {
@@ -2662,7 +2736,7 @@
 
 .badge-warning {
   background: var(--warning);
-  color: #92400e;
+  color: var(--badge-text);
 }
 
 /* --- Project Members --- */
@@ -2830,7 +2904,7 @@
 }
 
 .doc-list-item:hover {
-  background: rgba(74, 108, 247, 0.08);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
 /* --- Workflow Cards (within project) --- */
@@ -3018,7 +3092,7 @@
 .agent-tab.active {
   color: #fff;
   background: var(--accent);
-  box-shadow: 0 2px 8px rgba(74, 108, 247, 0.3);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
   font-weight: 600;
 }
 
@@ -3080,4 +3154,214 @@
   .form-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================
+   Custom title bar (macOS Overlay)
+   ============================================ */
+.titlebar {
+  height: var(--titlebar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 0.75rem;
+  background: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  color: var(--text);
+  position: relative;
+  z-index: 50;
+}
+
+body.tauri .titlebar {
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+}
+
+/* Reserve room for the macOS traffic lights (Tauri only). */
+.titlebar-traffic-spacer {
+  width: 0;
+  flex-shrink: 0;
+}
+
+body.tauri .titlebar-traffic-spacer {
+  width: 68px;
+}
+
+.titlebar-spacer {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.titlebar-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.titlebar-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.titlebar-crumb:last-child {
+  color: var(--text);
+}
+
+.titlebar-crumb-sep {
+  color: var(--text-light);
+  margin: 0 0.1rem;
+}
+
+.titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.titlebar-cmdk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.2rem 0.55rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.18s var(--ease-out), color 0.18s var(--ease-out);
+}
+
+.titlebar-cmdk:hover {
+  box-shadow: var(--neu-flat);
+  color: var(--accent);
+}
+
+.titlebar-cmdk-icon {
+  font-size: 0.8rem;
+}
+
+.titlebar-theme-toggle {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--neu-raised-sm);
+  color: var(--accent);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: box-shadow 0.18s var(--ease-out), transform 0.18s var(--ease-spring);
+}
+
+.titlebar-theme-toggle:hover {
+  box-shadow: var(--neu-flat);
+  transform: scale(1.08);
+}
+
+.titlebar-theme-toggle:active {
+  box-shadow: var(--neu-pressed);
+  transform: scale(0.95);
+}
+
+/* ============================================
+   Command palette (Cmd+K)
+   ============================================ */
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  background: color-mix(in srgb, var(--navy) 35%, transparent);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.cmdk-panel {
+  width: min(560px, 92vw);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: var(--neu-raised), 0 24px 60px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.cmdk-input {
+  border: none;
+  outline: none;
+  padding: 1.1rem 1.25rem;
+  font-size: 1rem;
+  background: var(--bg);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.cmdk-input::placeholder {
+  color: var(--text-light);
+}
+
+.cmdk-list {
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.cmdk-empty {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.9rem;
+  transition: background 0.12s var(--ease-out);
+}
+
+.cmdk-item.active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.cmdk-item-label {
+  font-weight: 500;
+}
+
+.cmdk-item-hint {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-light);
+  font-weight: 600;
 }

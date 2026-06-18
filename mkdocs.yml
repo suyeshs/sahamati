@@ -1,0 +1,57 @@
+site_name: sahamati
+site_description: Documentation for sahamati
+use_directory_urls: true
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - toc.follow
+    - content.code.copy
+
+plugins:
+  - search
+
+# Drafts written by `sahamati doc` live in docs/.drafts/ and are excluded
+# from the published site. Publish a draft with `sahamati publish` to move
+# it under docs/projects/<slug>/<phase>/ and commit.
+exclude_docs: |
+  .drafts/
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true

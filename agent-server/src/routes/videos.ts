@@ -45,7 +45,16 @@ videos.use("*", async (c, next) => {
 // All video routes require a verified session token. The download and thumbnail
 // endpoints are loaded directly by <video>/<img> elements, which cannot set an
 // Authorization header, so they pass the token via the ?token= query parameter.
-videos.use("*", authMiddleware);
+//
+// Guard each prefix this router owns rather than "*": the router is mounted at
+// "/" (see server.ts), so a bare "*" registers as global middleware and 401s
+// every route declared after it — including /health and the generated-doc
+// endpoints. Each prefix needs both the exact path (list endpoints) and the
+// wildcard (sub-paths).
+for (const prefix of ["/api/videos", "/api/templates", "/api/scriptwriter", "/api/characters"]) {
+  videos.use(prefix, authMiddleware);
+  videos.use(`${prefix}/*`, authMiddleware);
+}
 
 // ---- Video CRUD ----
 

@@ -179,6 +179,38 @@ Static code analysis of the repository covering OWASP Top 10, CWE/SANS Top 25, a
 | A09 | Logging & Monitoring Failures | [PASS/FAIL/PARTIAL] | [FINDING-XXX] |
 | A10 | SSRF | [PASS/FAIL/PARTIAL] | [FINDING-XXX] |
 
+### CWE/SANS Top 25 (2023) Coverage
+
+Every row must carry a verdict. N/A is allowed (e.g. memory-safety weaknesses in a memory-safe language) but requires a one-line justification — no row left blank.
+
+| # | CWE | Weakness | Status | Finding Refs |
+|---|-----|----------|--------|-------------|
+| 1 | CWE-787 | Out-of-bounds Write | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 2 | CWE-79 | Cross-site Scripting | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 3 | CWE-89 | SQL Injection | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 4 | CWE-416 | Use After Free | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 5 | CWE-78 | OS Command Injection | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 6 | CWE-20 | Improper Input Validation | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 7 | CWE-125 | Out-of-bounds Read | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 8 | CWE-22 | Path Traversal | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 9 | CWE-352 | Cross-Site Request Forgery | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 10 | CWE-434 | Unrestricted Upload of Dangerous File Type | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 11 | CWE-862 | Missing Authorization | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 12 | CWE-476 | NULL Pointer Dereference | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 13 | CWE-287 | Improper Authentication | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 14 | CWE-190 | Integer Overflow or Wraparound | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 15 | CWE-502 | Deserialization of Untrusted Data | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 16 | CWE-77 | Command Injection | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 17 | CWE-119 | Improper Restriction of Memory Buffer Operations | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 18 | CWE-798 | Use of Hard-coded Credentials | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 19 | CWE-918 | Server-Side Request Forgery (SSRF) | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 20 | CWE-306 | Missing Authentication for Critical Function | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 21 | CWE-362 | Race Condition | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 22 | CWE-269 | Improper Privilege Management | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 23 | CWE-94 | Code Injection | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 24 | CWE-863 | Incorrect Authorization | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+| 25 | CWE-276 | Incorrect Default Permissions | [PASS/FAIL/PARTIAL/N/A] | [FINDING-XXX] |
+
 ---
 
 ## 9. Remediation Priority Matrix

@@ -2,7 +2,7 @@
 // sahamati-kms. Mirrors the response shapes defined in
 // agent-server/src/services/kms-client.ts.
 
-import { authHeader } from "./auth-token";
+import { authHeader, handleAuthFailure } from "./auth-token";
 
 const BASE_URL = import.meta.env.VITE_AGENT_SERVER_URL || "http://localhost:3001";
 
@@ -69,6 +69,7 @@ async function apiFetch<T>(
       ...(rest.headers as Record<string, string> | undefined),
     },
   });
+  handleAuthFailure(res);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}) as Record<string, unknown>);
     const detail = (body as { detail?: string; error?: string }).detail

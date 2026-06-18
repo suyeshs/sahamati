@@ -1,6 +1,6 @@
 // Generation logger — adapted from sahamati-video for better-sqlite3
 
-import type { Database } from "better-sqlite3-multiple-ciphers";
+import type { DB as Database } from "../db/index.js";
 
 export type LogLevel = "info" | "thinking" | "action" | "success" | "error" | "warning";
 

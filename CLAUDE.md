@@ -35,7 +35,7 @@ These override convenience. Don't bypass them without raising it explicitly.
 
 1. **No raw LLM-generated database queries or shell commands executed against real systems.** LLM output goes through a deterministic, templated layer (validation, allow-listed operations, parameterised). This is the principle SaaNs v2 was rewritten around — apply it everywhere we run model output.
 2. **Secrets stay out of the repo.** `.env` files are gitignored; never paste keys into prompts, commits, or generated docs. The agent server reads its env from `agent-server/.env`.
-3. **The SQLite database is encrypted** (`better-sqlite3-multiple-ciphers`). Never delete `data/` or migration files to "fix" a schema issue — write a migration in `agent-server/src/db/migrations/`.
+3. **The SQLite database is encrypted at rest** (`libsql`, page-level encryption via `encryptionKey`; the key comes from `data/.db-key` or `$SAHAMATI_DB_KEY`). Never delete `data/` or migration files to "fix" a schema issue — write a migration in `agent-server/src/db/migrations/`. libsql's encryption is not cipher-compatible with SQLCipher or plaintext, so a driver/cipher change needs a one-time re-encrypt migration (see `agent-server/scripts/migrate-db-to-libsql.ts`).
 4. **Don't commit generated artefacts as if hand-authored.** Files under `docs/generated/` are agent output; treat them as build artefacts, not source.
 5. **No new top-level docs or summary files** unless asked. Work product goes in the code or in `docs/generated/` via the agents.
 
@@ -54,7 +54,7 @@ Pin to these unless there's a deliberate reason to change them:
 | HTTP framework | Hono 4 |
 | Agent runtime | `@anthropic-ai/claude-agent-sdk` |
 | Validation | Zod 4 |
-| DB | Encrypted SQLite via `better-sqlite3-multiple-ciphers` |
+| DB | Encrypted SQLite via `libsql` (synchronous, better-sqlite3-compatible; `encryptionKey` at-rest encryption) |
 | Auth | Session cookies + JWT (`jose`) + TOTP 2FA (`otpauth`) + GitHub OAuth (PKCE) |
 | Other model providers | `@google/genai` (kept narrow — Claude is primary) |
 | Docs portal | MkDocs (see `docs/portal/`) |
@@ -178,7 +178,7 @@ When generating any artefact, start from the template in `docs/templates/` rathe
 - Sessions are HTTP-only cookies; tokens are JWTs signed with `jose`. Don't add a parallel auth scheme.
 - 2FA is TOTP via `otpauth`. The 2FA route is `/two-factor`.
 - GitHub OAuth uses PKCE; the flow lives in [`agent-server/src/auth/github-routes.ts`](agent-server/src/auth/github-routes.ts) and [`pkce.ts`](agent-server/src/auth/pkce.ts).
-- SQLite is encrypted — passphrase comes from env. If you need a new table, write a migration in `agent-server/src/db/migrations/` and a repository in `agent-server/src/db/repositories/`. Don't run raw SQL from route handlers.
+- SQLite is encrypted at rest via `libsql`'s `encryptionKey` (key from `data/.db-key` or `$SAHAMATI_DB_KEY`); the driver is synchronous and better-sqlite3-compatible, and runs under Node (`tsx`/`node`), Bun, and the `bun build --compile` sidecar. If you need a new table, write a migration in `agent-server/src/db/migrations/` and a repository in `agent-server/src/db/repositories/`. Don't run raw SQL from route handlers.
 
 ---
 

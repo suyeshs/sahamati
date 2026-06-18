@@ -55,7 +55,7 @@ async function main(): Promise<number> {
     case "publish": {
       const noCommit = rest.includes("--no-commit");
       const filename = rest.find((a) => !a.startsWith("--"));
-      return runPublishCommand({ filename, noCommit });
+      return await runPublishCommand({ filename, noCommit });
     }
     case "discard": {
       const filename = rest[0];

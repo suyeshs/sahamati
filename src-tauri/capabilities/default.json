@@ -13,6 +13,13 @@
     "shell:allow-open",
     "shell:allow-spawn",
     "shell:allow-execute",
-    "shell:allow-kill"
+    "shell:allow-kill",
+    "notification:default",
+    "window-state:default",
+    "core:event:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging"
   ]
 }

@@ -7,7 +7,7 @@ import { generateDraft } from "../cli/lib/generate.js";
 import { listDrafts } from "../cli/lib/drafts.js";
 import { publishDraft } from "../cli/lib/publish.js";
 import { isDocType, DOC_TYPES } from "../cli/lib/templates.js";
-import { rmSync } from "node:fs";
+import { rmSync, readFileSync } from "node:fs";
 
 /**
  * Local-folder documentation routes used by the desktop GUI.
@@ -111,6 +111,23 @@ local.get("/api/local/drafts", (c) => {
       size: d.size,
     }));
     return c.json({ repoRoot, drafts });
+  } catch (err) {
+    const g = gitError(err);
+    if (g) return c.json(g.body, g.status);
+    throw err;
+  }
+});
+
+// Read a single draft's content for in-app review before publishing.
+local.get("/api/local/draft", (c) => {
+  const path = c.req.query("path");
+  const filename = c.req.query("filename");
+  if (!path || !filename) return c.json({ error: "path and filename query params are required" }, 400);
+  try {
+    const repoRoot = resolveRepo(path);
+    const draft = listDrafts(repoRoot).find((d) => d.filename === filename);
+    if (!draft) return c.json({ error: `Draft not found: ${filename}` }, 404);
+    return c.json({ filename, content: readFileSync(draft.path, "utf-8") });
   } catch (err) {
     const g = gitError(err);
     if (g) return c.json(g.body, g.status);

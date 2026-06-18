@@ -126,6 +126,9 @@ export function getProjectBySlug(slug: string): ProjectWithDetails | undefined {
 
 export function listProjectsForUser(userId: string): ProjectWithDetails[] {
   const db = getDb();
+  // A creator should always see their own project even if their project_members
+  // row is missing — past incidents (sync DELETE replay, manual repair) have
+  // dropped owner rows and silently hidden the project from its creator.
   return db
     .prepare(
       `SELECT p.*,
@@ -133,11 +136,12 @@ export function listProjectsForUser(userId: string): ProjectWithDetails[] {
         (SELECT COUNT(*) FROM project_phases WHERE project_id = p.id) as phase_count,
         (SELECT COUNT(*) FROM documents WHERE project_id = p.id) as doc_count
       FROM projects p
-      INNER JOIN project_members pm ON pm.project_id = p.id
-      WHERE pm.user_id = ? AND p.status != 'archived'
+      LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = ?
+      WHERE (pm.user_id = ? OR p.created_by = ?) AND p.status != 'archived'
+      GROUP BY p.id
       ORDER BY p.updated_at DESC`
     )
-    .all(userId) as ProjectWithDetails[];
+    .all(userId, userId, userId) as ProjectWithDetails[];
 }
 
 export function listAllProjects(): ProjectWithDetails[] {

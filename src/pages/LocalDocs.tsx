@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useLocalProject } from "../context/LocalProjectContext";
+import { useAuth } from "../context/AuthContext";
+import { listProjects, createDocument, triggerSync, type ProjectWithDetails } from "../lib/project-api";
 import {
   pickProjectFolder,
   resolveRepo,
@@ -9,6 +11,7 @@ import {
   listDrafts,
   publishDraft,
   discardDraft,
+  readDraft,
   generateDraft,
   DOC_TYPES,
   type DocType,
@@ -17,19 +20,46 @@ import {
 
 type RunStatus = "idle" | "running" | "done" | "error";
 
+/** Map a draft filename prefix to a project document category for the portal. */
+function categoryFromFilename(filename: string): string {
+  const f = filename.toLowerCase();
+  if (f.startsWith("brd-") || f.startsWith("intent-")) return "business";
+  if (f.startsWith("story-") || f.startsWith("us-")) return "requirements";
+  if (f.startsWith("architecture-") || f.startsWith("arch-")) return "process";
+  if (f.startsWith("security-")) return "security";
+  return "general";
+}
+
 export default function LocalDocs() {
-  const { selectedPath, repoRoot, setProject, clearProject } = useLocalProject();
+  const { user } = useAuth();
+  const { selectedSlug, selectedPath, repoRoot, selectProject, bindFolder, clearBinding } =
+    useLocalProject();
+  const [projects, setProjects] = useState<ProjectWithDetails[]>([]);
   const [docType, setDocType] = useState<DocType>("brd");
   const [brief, setBrief] = useState("");
   const [status, setStatus] = useState<RunStatus>("idle");
   const [output, setOutput] = useState("");
   const [error, setError] = useState("");
   const [drafts, setDrafts] = useState<DraftInfo[]>([]);
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
 
+  const selectedProject = projects.find((p) => p.slug === selectedSlug) ?? null;
+
+  // Load the user's projects for the picker
+  useEffect(() => {
+    if (!user?.email) return;
+    listProjects(user.email)
+      .then((res) => setProjects(res.projects))
+      .catch((err) => setError(err instanceof Error ? err.message : String(err)));
+  }, [user?.email]);
+
   const refreshDrafts = useCallback(async () => {
-    if (!selectedPath) return;
+    if (!selectedPath) {
+      setDrafts([]);
+      return;
+    }
     try {
       const { drafts } = await listDrafts(selectedPath);
       setDrafts(drafts);
@@ -42,14 +72,22 @@ export default function LocalDocs() {
     refreshDrafts();
   }, [refreshDrafts]);
 
+  const handleSelectProject = (slug: string) => {
+    setError("");
+    setNotice("");
+    setOutput("");
+    selectProject(slug || null);
+  };
+
   const handlePick = async () => {
+    if (!selectedSlug) return;
     setError("");
     setNotice("");
     const path = await pickProjectFolder();
     if (!path) return;
     try {
       const { repoRoot } = await resolveRepo(path);
-      setProject(path, repoRoot);
+      bindFolder(selectedSlug, path, repoRoot);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -75,6 +113,7 @@ export default function LocalDocs() {
     if (!selectedPath || !brief.trim()) return;
     setStatus("running");
     setOutput("");
+    setReviewing(null);
     setError("");
     setNotice("");
     const { promise, controller } = generateDraft(selectedPath, docType, brief);
@@ -97,17 +136,62 @@ export default function LocalDocs() {
     if (!selectedPath) return;
     setError("");
     try {
+      // Read the content before publishing — publish moves the file out of .drafts/.
+      let content = "";
+      try {
+        content = (await readDraft(selectedPath, filename)).content;
+      } catch {
+        /* fall through; portal registration is best-effort */
+      }
+
       const res = await publishDraft(selectedPath, filename, true);
       if (res.status === "published") {
-        setNotice(
-          `Published → ${res.publishRel}${res.committed ? ` (committed ${res.sha?.slice(0, 7)})` : ""}. Push when ready.`
-        );
+        const committed = res.committed ? ` (committed ${res.sha?.slice(0, 7)})` : "";
+
+        // Register with the selected project, then push immediately so it lands
+        // in the documentation portal now — rather than waiting on the background
+        // drain (which the SYNC_DISABLED kill-switch may have paused). Repo copy
+        // and portal copy coexist.
+        let portalNote = "";
+        if (selectedSlug && user?.email && content) {
+          try {
+            await createDocument(user.email, selectedSlug, {
+              title: filename.replace(/\.md$/, ""),
+              content,
+              category: categoryFromFilename(filename),
+              filename,
+            });
+            try {
+              const { pushed } = await triggerSync(user.email);
+              portalNote = ` Synced to the documentation portal (${pushed} change${pushed === 1 ? "" : "s"} pushed).`;
+            } catch (syncErr) {
+              const msg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+              portalNote = ` Saved to the project — portal sync didn't run (${msg}). It'll sync once enabled.`;
+            }
+          } catch (err) {
+            portalNote = ` (repo published, but portal registration failed: ${err instanceof Error ? err.message : String(err)})`;
+          }
+        }
+
+        setNotice(`Published → ${res.publishRel}${committed}. git push when ready.${portalNote}`);
       } else if (res.status === "exists") {
         setError(`A published file already exists at ${res.publishRel}.`);
       } else {
         setError(`Could not publish (${res.status}).`);
       }
       refreshDrafts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleReview = async (filename: string) => {
+    if (!selectedPath) return;
+    setError("");
+    try {
+      const { content } = await readDraft(selectedPath, filename);
+      setOutput(content);
+      setReviewing(filename);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -134,27 +218,57 @@ export default function LocalDocs() {
         them as unpublished until you publish.
       </p>
 
-      {/* Folder selection */}
+      {/* Project selection */}
       <div style={{ margin: "1rem 0", padding: "1rem", borderRadius: "var(--radius)", boxShadow: "var(--neu-inset)" }}>
-        {selectedPath ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
-            <div>
-              <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Project folder</div>
-              <div style={{ fontFamily: "monospace" }}>{selectedPath}</div>
-              {repoRoot && repoRoot !== selectedPath && (
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>repo root: {repoRoot}</div>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button className="btn btn-sm" onClick={handleInit}>Initialize docs</button>
-              <button className="btn btn-sm" onClick={handlePick}>Change…</button>
-              <button className="btn btn-sm" onClick={clearProject}>Clear</button>
-            </div>
+        <label htmlFor="local-project" style={{ fontSize: "0.8rem", color: "var(--text-muted)", display: "block", marginBottom: "0.35rem" }}>
+          Project
+        </label>
+        <select
+          id="local-project"
+          value={selectedSlug ?? ""}
+          onChange={(e) => handleSelectProject(e.target.value)}
+          style={{ width: "100%" }}
+        >
+          <option value="">Select a project…</option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.slug}>{p.name}</option>
+          ))}
+        </select>
+
+        {selectedProject && (
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.5rem" }}>
+            {selectedProject.github_repo_url
+              ? <>Linked repo: <a href={selectedProject.github_repo_url} target="_blank" rel="noreferrer">{selectedProject.github_repo_url}</a></>
+              : <>No GitHub repo linked — add one in Project → Settings.</>}
           </div>
-        ) : (
-          <div style={{ textAlign: "center" }}>
-            <p style={{ marginBottom: "0.75rem" }}>No project selected.</p>
-            <button className="btn btn-primary" onClick={handlePick}>Choose project folder…</button>
+        )}
+
+        {/* Folder binding for the selected project */}
+        {selectedSlug && (
+          <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border, #eee)" }}>
+            {selectedPath ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}>
+                <div>
+                  <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>Working folder</div>
+                  <div style={{ fontFamily: "monospace" }}>{selectedPath}</div>
+                  {repoRoot && repoRoot !== selectedPath && (
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>repo root: {repoRoot}</div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button className="btn btn-sm" onClick={handleInit}>Initialize docs</button>
+                  <button className="btn btn-sm" onClick={handlePick}>Change…</button>
+                  <button className="btn btn-sm" onClick={() => clearBinding(selectedSlug)}>Clear</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: "center" }}>
+                <p style={{ marginBottom: "0.75rem", fontSize: "0.85rem", color: "var(--text-muted)" }}>
+                  Pick the local checkout for this project once — it's remembered next time.
+                </p>
+                <button className="btn btn-primary" onClick={handlePick}>Choose project folder…</button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -204,6 +318,7 @@ export default function LocalDocs() {
                       </div>
                     </div>
                     <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button className="btn btn-sm" onClick={() => handleReview(d.filename)}>Review</button>
                       <button className="btn btn-sm btn-primary" onClick={() => handlePublish(d.filename)}>Publish</button>
                       <button className="btn btn-sm" onClick={() => handleDiscard(d.filename)}>Discard</button>
                     </div>
@@ -216,7 +331,14 @@ export default function LocalDocs() {
           {/* Output preview */}
           {output && (
             <div style={{ margin: "1rem 0" }}>
-              <h3>Preview</h3>
+              <h3>
+                {reviewing ? `Reviewing: ${reviewing}` : "Preview"}
+                {reviewing && (
+                  <button className="btn btn-sm" style={{ marginLeft: "0.75rem" }} onClick={() => { setOutput(""); setReviewing(null); }}>
+                    Close
+                  </button>
+                )}
+              </h3>
               <div className="md-viewer" style={{ maxHeight: 400, overflow: "auto", padding: "1rem", boxShadow: "var(--neu-inset)", borderRadius: "var(--radius)" }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
               </div>

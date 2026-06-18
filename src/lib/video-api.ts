@@ -1,6 +1,6 @@
 // Video API client for the frontend
 
-import { authHeader, appendToken } from "./auth-token";
+import { authHeader, appendToken, handleAuthFailure } from "./auth-token";
 
 const AGENT_SERVER_URL =
   import.meta.env.VITE_AGENT_SERVER_URL ?? "http://localhost:3001";
@@ -8,11 +8,12 @@ const AGENT_SERVER_URL =
 // Video routes require a verified session token. This wrapper attaches the
 // bearer header; download/thumbnail URLs (loaded by <video>/<img>) instead use
 // appendToken() since those elements cannot set an Authorization header.
+// A 401 tears the session down via handleAuthFailure.
 function authedFetch(url: string, init: RequestInit = {}): Promise<Response> {
   return fetch(url, {
     ...init,
     headers: { ...(init.headers as Record<string, string> | undefined), ...authHeader() },
-  });
+  }).then(handleAuthFailure);
 }
 
 // Types matching the server-side video types

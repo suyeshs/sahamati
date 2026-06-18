@@ -70,7 +70,7 @@ app.get("/health", (c) => {
   const openclawAgents = openclawRunner.listAgents();
   return c.json({
     status: "ok",
-    agents: ["discovery", "requirements", "knowledge", "process-docs", "evernote", "security", "video"],
+    agents: ["discovery", "requirements", "knowledge", "process-docs", "evernote", "security", "owasp", "vapt", "video"],
     openclawAgentCount: openclawAgents.length,
     runnerMode: getRunnerMode(),
   });
@@ -118,7 +118,7 @@ app.post("/api/agent/run", async (c) => {
           onMessage,
         });
       } else if (agentType && agentType !== "orchestrator" && agentType !== "openclaw") {
-        const agentKey = `${agentType}-agent` as "discovery-agent" | "requirements-agent" | "knowledge-agent" | "process-docs-agent" | "evernote-agent" | "security-agent" | "video-agent";
+        const agentKey = `${agentType}-agent` as "discovery-agent" | "requirements-agent" | "knowledge-agent" | "process-docs-agent" | "evernote-agent" | "security-agent" | "owasp-agent" | "vapt-agent" | "video-agent";
         await runDirectAgent(agentKey, prompt, {
           sessionId,
           cwd: PROJECT_ROOT,

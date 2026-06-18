@@ -260,8 +260,11 @@ projects.get(
     const slug = c.req.param("slug");
     const phaseId = c.req.query("phaseId");
 
-    // Auto-link generated docs that haven't been linked yet
-    linkGeneratedDocsToProject(projectId, slug, userId);
+    // Ingest any new .md files this project wrote into its own folder.
+    // Generation is project-scoped (see buildAgentContext) so we never sweep
+    // the shared docs/generated/ dir here — that path is opt-in via the
+    // explicit link-generated endpoint, used only to migrate legacy output.
+    ingestProjectPhaseDocs(projectId, slug, userId);
 
     const docs = listDocuments(projectId, phaseId || undefined);
     return c.json({ documents: docs });
@@ -527,7 +530,7 @@ function inferCategoryFromFilename(filename: string): string | undefined {
  * shared-folder sweep, so orphaned generation from other projects cannot
  * leak in.
  */
-function ingestProjectPhaseDocs(
+export function ingestProjectPhaseDocs(
   projectId: string,
   slug: string,
   userId: string,

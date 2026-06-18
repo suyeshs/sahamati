@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useProject } from "../context/ProjectContext";
 import { usePermissions } from "../hooks/usePermissions";
+import GitHubRepoPicker from "../components/GitHubRepoPicker";
 import { updateProject, archiveProject, deleteProject } from "../lib/project-api";
 
 export default function ProjectSettings() {
@@ -105,14 +106,8 @@ export default function ProjectSettings() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="settings-github">GitHub Repository URL</label>
-          <input
-            id="settings-github"
-            type="url"
-            value={githubRepoUrl}
-            onChange={(e) => setGithubRepoUrl(e.target.value)}
-            placeholder="https://github.com/..."
-          />
+          <label>GitHub Repository</label>
+          <GitHubRepoPicker value={githubRepoUrl} onChange={setGithubRepoUrl} />
         </div>
 
         {message && <p className={message.startsWith("Error") ? "error-text" : "success-text"}>{message}</p>}

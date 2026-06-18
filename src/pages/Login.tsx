@@ -6,7 +6,7 @@ export default function Login() {
   const isTauri = isTauriEnvironment();
 
   return (
-    <div className="login-page">
+    <div className="login-page" data-tauri-drag-region>
       <div className="login-card">
         <div className="login-header">
           <img

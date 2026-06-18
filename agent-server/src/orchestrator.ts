@@ -21,7 +21,7 @@ type SdkMcpServers = NonNullable<
 >["mcpServers"];
 
 // Legacy imports kept as fallback
-import { discoveryAgent, requirementsAgent, knowledgeAgent, processDocsAgent, evernoteAgent, securityAgent, videoAgent } from "./agents/index.js";
+import { discoveryAgent, requirementsAgent, knowledgeAgent, processDocsAgent, evernoteAgent, securityAgent, owaspAgent, vaptAgent, videoAgent } from "./agents/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isBunBinary = __dirname.startsWith("/$bunfs");
@@ -81,6 +81,8 @@ const legacyAgents = {
   "process-docs-agent": processDocsAgent,
   "evernote-agent": evernoteAgent,
   "security-agent": securityAgent,
+  "owasp-agent": owaspAgent,
+  "vapt-agent": vaptAgent,
   "video-agent": videoAgent,
 };
 

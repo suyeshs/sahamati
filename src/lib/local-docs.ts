@@ -69,6 +69,14 @@ export async function discardDraft(path: string, filename: string): Promise<{ st
   return postJson("/api/local/discard", { path, filename });
 }
 
+export async function readDraft(path: string, filename: string): Promise<{ filename: string; content: string }> {
+  const url = `${BASE_URL}/api/local/draft?path=${encodeURIComponent(path)}&filename=${encodeURIComponent(filename)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `Request failed (${res.status})`);
+  return data as { filename: string; content: string };
+}
+
 export interface GeneratedDraft {
   repoRoot: string;
   filename: string;

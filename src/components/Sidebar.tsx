@@ -31,7 +31,7 @@ export default function Sidebar({ mode }: SidebarProps) {
   return (
     <nav className="sidebar">
       <div className="sidebar-header">
-        <h1>Sahamati</h1>
+        <img src="/sahamati-logo.png" alt="Sahamati" className="sidebar-logo" />
         <span className="sidebar-subtitle">
           {mode === "project" ? "Project Workspace" : "Internal Tools"}
         </span>
@@ -49,14 +49,7 @@ export default function Sidebar({ mode }: SidebarProps) {
                 Home
               </NavLink>
             </li>
-            <li>
-              <NavLink
-                to="/videos"
-                className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
-              >
-                Videos
-              </NavLink>
-            </li>
+            {/* Videos hidden for now */}
             <li>
               <NavLink
                 to="/agents"
@@ -73,14 +66,7 @@ export default function Sidebar({ mode }: SidebarProps) {
                 Local Docs
               </NavLink>
             </li>
-            <li>
-              <NavLink
-                to="/secrets"
-                className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
-              >
-                Secrets
-              </NavLink>
-            </li>
+            {/* Secrets hidden for now */}
             <li>
               <NavLink
                 to="/settings"

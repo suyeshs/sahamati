@@ -1,4 +1,4 @@
-import { authHeader } from "./auth-token";
+import { authHeader, handleAuthFailure } from "./auth-token";
 
 const BASE_URL = import.meta.env.VITE_AGENT_SERVER_URL || "http://localhost:3001";
 
@@ -15,6 +15,7 @@ async function apiFetch<T>(path: string, options?: RequestInit & { email?: strin
     : `${BASE_URL}${path}${email ? `?email=${encodeURIComponent(email)}` : ""}`;
 
   const res = await fetch(url, { ...fetchOptions, headers });
+  handleAuthFailure(res);
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: res.statusText }));
@@ -196,6 +197,7 @@ export function runProjectAgent(
     signal: controller.signal,
   })
     .then(async (response) => {
+      handleAuthFailure(response);
       if (!response.ok) {
         const err = await response.json().catch(() => ({ error: "Agent run failed" }));
         onError?.((err as any).error);

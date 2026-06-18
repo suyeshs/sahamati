@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { motion } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 import { listProjects, archiveProject, type ProjectWithDetails } from "../lib/project-api";
 import ProjectCard from "../components/ProjectCard";
@@ -59,11 +60,27 @@ export default function ProjectList() {
           </Link>
         </div>
       ) : (
-        <div className="project-grid">
+        <motion.div
+          className="project-grid"
+          initial="hidden"
+          animate="show"
+          variants={{
+            hidden: {},
+            show: { transition: { staggerChildren: 0.05 } },
+          }}
+        >
           {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} onArchive={handleArchive} />
+            <motion.div
+              key={project.id}
+              variants={{
+                hidden: { opacity: 0, y: 14 },
+                show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 380, damping: 30 } },
+              }}
+            >
+              <ProjectCard project={project} onArchive={handleArchive} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
     </div>
   );

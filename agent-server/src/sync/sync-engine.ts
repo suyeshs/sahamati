@@ -307,6 +307,23 @@ function applyRemoteChanges(changes: SyncRecord[]) {
 
   const relevant = changes.filter((c) => SYNC_TABLES.includes(c.table_name));
 
+  // Collapse to the newest change per record — genuine last-write-wins. The
+  // cloud _sync_log is append-only, so a full re-pull (recovery, new device,
+  // since-reset) delivers a record's entire history in one batch. Without this
+  // collapse the operation-class split below applied every upsert then every
+  // delete, so a stale DELETE always beat a newer INSERT/UPDATE for the same
+  // key regardless of timestamp. That immortal-DELETE-wins behaviour is what
+  // kept dropping a project's creator-owner row right after it was repaired.
+  // Record timestamps are all SQLite datetime('now') strings, so lexicographic
+  // comparison is correct; ties keep the first seen (prior behaviour).
+  const latest = new Map<string, SyncRecord>();
+  for (const c of relevant) {
+    const key = `${c.table_name} ${c.record_id}`;
+    const prev = latest.get(key);
+    if (!prev || c.timestamp > prev.timestamp) latest.set(key, c);
+  }
+  const winners = [...latest.values()];
+
   // Apply upserts parents-first and deletes children-first (per SYNC_TABLES
   // dependency order) so the common "child arrives before parent" interleaving
   // resolves itself. Each change is applied independently: a row whose parent
@@ -314,10 +331,10 @@ function applyRemoteChanges(changes: SyncRecord[]) {
   // deleted without cascading) is skipped and logged rather than failing the
   // whole batch and wedging sync forever.
   const tableIndex = (t: string) => SYNC_TABLES.indexOf(t);
-  const upserts = relevant
+  const upserts = winners
     .filter((c) => c.operation !== "DELETE")
     .sort((a, b) => tableIndex(a.table_name) - tableIndex(b.table_name));
-  const deletes = relevant
+  const deletes = winners
     .filter((c) => c.operation === "DELETE")
     .sort((a, b) => tableIndex(b.table_name) - tableIndex(a.table_name));
 

@@ -120,7 +120,7 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="loading-screen">
+      <div className="loading-screen" data-tauri-drag-region>
         <div className="loading-spinner" />
         <p>Loading...</p>
       </div>

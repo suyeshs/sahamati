@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { runAgent, type AgentType } from "../lib/agent-api";
 import { runProjectAgent, triggerSync, listDocuments, type DocumentWithPhase } from "../lib/project-api";
 import GitHubFilePicker, { type GitHubFileSelection } from "./GitHubFilePicker";
+import { notify } from "../lib/notify";
 
 interface AgentRunnerProps {
   agentType?: string;
@@ -75,12 +76,13 @@ export default function AgentRunner({
 
   const handleDone = useCallback(async () => {
     setStatus("completed");
+    notify("Agent run complete", `${title} finished generating.`);
     // After agent completes, fetch linked docs and trigger sync
     if (projectSlug && userEmail) {
       await fetchLinkedDocs();
       handleSync();
     }
-  }, [projectSlug, userEmail, fetchLinkedDocs, handleSync]);
+  }, [projectSlug, userEmail, fetchLinkedDocs, handleSync, title]);
 
   const handleRun = useCallback(() => {
     if (!input.trim()) return;
@@ -116,6 +118,7 @@ export default function AgentRunner({
     const onError = (err: string) => {
       setError(err);
       setStatus("error");
+      notify("Agent run failed", err.slice(0, 140));
     };
 
     // Use project-scoped endpoint when projectSlug is available
@@ -142,12 +145,15 @@ export default function AgentRunner({
         },
         {
           onMessage,
-          onDone: () => setStatus("completed"),
+          onDone: () => {
+            setStatus("completed");
+            notify("Agent run complete", `${title} finished generating.`);
+          },
           onError,
         },
       );
     }
-  }, [input, agentType, openclawAgent, userEmail, projectSlug, phaseId, buildPromptWithContext, selectedFiles, handleDone]);
+  }, [input, agentType, openclawAgent, userEmail, projectSlug, phaseId, buildPromptWithContext, selectedFiles, handleDone, title]);
 
   const handleStop = useCallback(() => {
     controllerRef.current?.abort();
@@ -158,7 +164,7 @@ export default function AgentRunner({
     <div className="agent-runner">
       <div className="agent-runner-header">
         <h3>{title}</h3>
-        <p style={{ fontSize: "0.85rem", color: "#666", margin: "0.25rem 0 0" }}>
+        <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", margin: "0.25rem 0 0" }}>
           {description}
         </p>
       </div>

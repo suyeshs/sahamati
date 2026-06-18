@@ -21,7 +21,7 @@ import {
   openInSystemBrowser,
   pollAuthResult,
 } from "./tauri-auth";
-import { setAuthToken } from "../lib/auth-token";
+import { setAuthToken, setUnauthorizedHandler } from "../lib/auth-token";
 
 // Google Identity Services types
 declare global {
@@ -154,6 +154,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY);
     setIsLoading(false);
   }, []);
+
+  // When any protected API call returns 401, the in-memory token is no longer
+  // accepted by the server (expired, or no user row). Tear the session down so
+  // the UI drops to the login screen instead of repeatedly firing dead-token
+  // requests. 403 (insufficient permissions) is left to surface per-call.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      clearSession();
+      setError("Your session has expired. Please sign in again.");
+    });
+    return () => setUnauthorizedHandler(null);
+  }, [clearSession]);
 
   // Load Google Identity Services (skip in Tauri — GSI doesn't work in WKWebView)
   useEffect(() => {

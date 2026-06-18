@@ -1,4 +1,4 @@
-import Database from "better-sqlite3-multiple-ciphers";
+import Database from "libsql";
 import { readFileSync, writeFileSync, chmodSync, existsSync, mkdirSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -18,7 +18,19 @@ const MIGRATIONS_DIR = isBunBinary
   ? resolve(projectRoot(), "agent-server/src/db/migrations")
   : resolve(__dirname, "./migrations");
 
-let db: Database.Database;
+/** The driver's Database handle, named in one place so consumers don't import the driver directly. */
+export type DB = import("libsql").Database;
+
+let db: DB;
+
+// libsql's native binding supports at-rest encryption via encryptionKey/encryptionCipher,
+// but its bundled types (copied from better-sqlite3) omit them — model the supported
+// options at the boundary rather than reaching for `any`.
+type LibsqlOptions = NonNullable<ConstructorParameters<typeof Database>[1]>;
+type EncryptedDbOptions = LibsqlOptions & {
+  encryptionKey?: string;
+  encryptionCipher?: string;
+};
 
 function getOrCreateEncryptionKey(): string {
   if (process.env.SAHAMATI_DB_KEY) {
@@ -36,56 +48,22 @@ function getOrCreateEncryptionKey(): string {
   return key;
 }
 
-export function getDb(): Database.Database {
+export function getDb(): DB {
   if (!db) {
     throw new Error("Database not initialized. Call initDb() first.");
   }
   return db;
 }
 
-// A keyed connection can read the database only when the supplied key matches
-// (or the file is brand new). We probe sqlite_master because the cipher is not
-// validated until the first page is actually read.
-function canRead(conn: Database.Database): boolean {
-  try {
-    conn.prepare("SELECT count(*) FROM sqlite_master").get();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function initDb(): Database.Database {
+export function initDb(): DB {
   if (db) return db;
 
   if (!existsSync(DATA_DIR)) {
     mkdirSync(DATA_DIR, { recursive: true });
   }
 
-  const encryptionKey = getOrCreateEncryptionKey();
-  const dbExisted = existsSync(DB_PATH);
-
-  db = new Database(DB_PATH);
-  db.pragma(`key = '${encryptionKey}'`);
-
-  // An existing file may be a legacy plaintext database created before encryption
-  // was wired up. If the keyed read fails, reopen without a key: if it then reads
-  // as plaintext, encrypt it in place via rekey; otherwise the key is simply wrong.
-  if (dbExisted && !canRead(db)) {
-    db.close();
-    db = new Database(DB_PATH);
-    if (!canRead(db)) {
-      throw new Error(
-        `Cannot open database at ${DB_PATH}: wrong SAHAMATI_DB_KEY or corrupt file. ` +
-          `The key is read from SAHAMATI_DB_KEY or ${KEY_PATH}.`
-      );
-    }
-    // Rekey is rejected in WAL mode, so drop to a rollback journal first; the
-    // normal init path below re-enables WAL on the now-encrypted database.
-    db.pragma("journal_mode = DELETE");
-    db.pragma(`rekey = '${encryptionKey}'`);
-    console.warn("Encrypted legacy plaintext database in place at", DB_PATH);
-  }
+  const options: EncryptedDbOptions = { encryptionKey: getOrCreateEncryptionKey() };
+  db = new Database(DB_PATH, options);
 
   db.exec("PRAGMA journal_mode = WAL");
   db.exec("PRAGMA foreign_keys = ON");
@@ -140,6 +118,6 @@ export function closeDb() {
   }
 }
 
-export function _setDbForTests(testDb: Database.Database) {
+export function _setDbForTests(testDb: DB) {
   db = testDb;
 }

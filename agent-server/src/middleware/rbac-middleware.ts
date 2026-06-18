@@ -69,7 +69,14 @@ export function requireProjectPermission(action: Action) {
       return c.json({ error: "Project not found" }, 404);
     }
 
-    const memberRole = getMemberRole(project.id, userId);
+    // A project's creator is always its owner, even if their project_members
+    // row is missing. Sync DELETE replays have dropped owner rows before; the
+    // project list (listProjectsForUser) already falls back to created_by, so
+    // mirror that here — otherwise the creator sees the project but is denied
+    // every action against it.
+    const memberRole =
+      getMemberRole(project.id, userId) ??
+      (project.created_by === userId ? "owner" : undefined);
     if (!checkPermission(memberRole, userRole, action)) {
       return c.json({ error: "Insufficient permissions" }, 403);
     }

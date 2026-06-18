@@ -66,6 +66,35 @@ Perform these checks in order:
 - Verify sensitive data is not logged
 - Check for security event logging
 
+### Phase 10: CWE / SANS Top 25 Checklist
+Walk every entry of the CWE Top 25 Most Dangerous Software Weaknesses (2023) and record a verdict (PASS / FAIL / PARTIAL / N/A) with finding references. N/A is permitted (e.g. memory-safety CWEs in a memory-safe language) but must be justified in one line — never skip an entry silently.
+
+1. CWE-787 Out-of-bounds Write
+2. CWE-79 Cross-site Scripting
+3. CWE-89 SQL Injection
+4. CWE-416 Use After Free
+5. CWE-78 OS Command Injection
+6. CWE-20 Improper Input Validation
+7. CWE-125 Out-of-bounds Read
+8. CWE-22 Path Traversal
+9. CWE-352 CSRF
+10. CWE-434 Unrestricted Upload of Dangerous File Type
+11. CWE-862 Missing Authorization
+12. CWE-476 NULL Pointer Dereference
+13. CWE-287 Improper Authentication
+14. CWE-190 Integer Overflow or Wraparound
+15. CWE-502 Deserialization of Untrusted Data
+16. CWE-77 Command Injection
+17. CWE-119 Improper Restriction of Operations within Memory Buffer Bounds
+18. CWE-798 Use of Hard-coded Credentials
+19. CWE-918 Server-Side Request Forgery (SSRF)
+20. CWE-306 Missing Authentication for Critical Function
+21. CWE-362 Race Condition
+22. CWE-269 Improper Privilege Management
+23. CWE-94 Code Injection
+24. CWE-863 Incorrect Authorization
+25. CWE-276 Incorrect Default Permissions
+
 ## Severity Classification
 
 Use this severity scale:
@@ -96,7 +125,7 @@ Map each finding to the most relevant CWE:
 
 1. **Write the Security Assessment Report** using the Write tool. Target the `OUTPUT_DIR` provided in the user prompt's Project Context block; only fall back to `docs/generated/security/` when no `OUTPUT_DIR` is given. Name the file `SECURITY-ASSESSMENT-{project-name}-{date}.md` where project-name is derived from the target (lowercase, hyphens) and date is today's date in YYYY-MM-DD format.
 
-2. Fill in ALL sections of the template — never leave a section empty. If no issues found in a category, explicitly state "No issues identified."
+2. Fill in ALL sections of the template — never leave a section empty. If no issues found in a category, explicitly state "No issues identified." This includes both the OWASP Top 10 (2021) coverage matrix and the CWE/SANS Top 25 (2023) coverage matrix — every row of each must carry a verdict and finding refs (or a one-line N/A justification).
 
 3. Number findings sequentially as FINDING-001, FINDING-002, etc.
 

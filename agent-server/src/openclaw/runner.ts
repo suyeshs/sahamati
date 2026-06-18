@@ -388,6 +388,13 @@ export function seedBuiltInAgents(): void {
     model: "sonnet",
     maxTurns: 20,
   });
+
+  // NOTE: security / owasp / vapt are intentionally NOT seeded as OpenClaw souls.
+  // They are first-class Anthropic (Claude Agent SDK) agents defined in code under
+  // agent-server/src/agents/{security,owasp,vapt}.ts with version-controlled prompts,
+  // per-agent tool allow-lists, and pinned models — run via runDirectAgent. Keeping
+  // the security assessors code-defined (not runtime-editable souls) preserves
+  // auditability for the regulated AA context.
 }
 
 function seedDocumentationAgent(): void {

@@ -29,6 +29,24 @@ const AGENT_WORKFLOWS = [
     description: "Generate SOPs, architecture docs, and runbooks from a codebase.",
     phase: "Development",
   },
+  {
+    type: "security",
+    title: "Security Assessment",
+    description: "Static security review of a codebase — secrets, auth, injection, misconfig — as an OWASP/CWE report.",
+    phase: "Development",
+  },
+  {
+    type: "owasp",
+    title: "OWASP Assessment",
+    description: "Assess against OWASP Top 10:2025 + ASVS with a STRIDE threat model, test-execution register, and regulatory alignment.",
+    phase: "Development",
+  },
+  {
+    type: "vapt",
+    title: "VAPT Report",
+    description: "Vulnerability assessment & penetration-test plan: recon, STRIDE threat model, findings, and an operator run-book.",
+    phase: "Development",
+  },
 ];
 
 export default function ProjectWorkflows() {
