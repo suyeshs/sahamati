@@ -85,7 +85,7 @@ jobs:
 
       - name: Build Tauri app (deb + rpm + AppImage)
         # tauri.linux.conf.json pins bundle targets; --bundles makes it explicit.
-        run: bun run tauri build --bundles deb,rpm,appimage
+        run: bun tauri build --bundles deb,rpm,appimage
 
       - name: Upload Linux bundles
         uses: actions/upload-artifact@v4
