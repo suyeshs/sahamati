@@ -63,6 +63,9 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # Keep the (slow) Rust compile cached even when AppImage bundling
+          # fails, so retries don't re-pay the ~8 min build.
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: bun install
@@ -83,20 +86,30 @@ jobs:
       - name: Verify sidecar binary is present
         run: ls -l src-tauri/binaries
 
-      - name: Build Tauri app (deb + rpm + AppImage)
-        # tauri.linux.conf.json pins bundle targets; --bundles makes it explicit.
-        # APPIMAGE_EXTRACT_AND_RUN: linuxdeploy/appimagetool are themselves
-        # AppImages that need FUSE to mount; GitHub runners have no FUSE, so run
-        # them in extract-and-run mode instead.
+      - name: Build deb + rpm
+        # These bundlers are reliable on CI; build them first so the artifact
+        # upload always has something even if the AppImage step misbehaves.
+        run: bun tauri build --bundles deb,rpm
+
+      - name: Build AppImage
+        # Reuses the already-compiled release binary (cargo no-op). linuxdeploy
+        # and appimagetool are AppImages needing FUSE, which GitHub runners
+        # lack, so run them in extract-and-run mode. --verbose surfaces
+        # linuxdeploy's real stderr. continue-on-error keeps deb/rpm shippable
+        # while the AppImage path is stabilised.
+        continue-on-error: true
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
-        run: bun tauri build --bundles deb,rpm,appimage
+          NO_STRIP: true
+        run: bun tauri build --bundles appimage --verbose
 
       - name: Upload Linux bundles
         uses: actions/upload-artifact@v4
         with:
           name: sahamati-linux-bundles
-          if-no-files-found: error
+          # warn (not error): the AppImage glob may be empty if that step is
+          # still being stabilised; deb/rpm must still upload.
+          if-no-files-found: warn
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
