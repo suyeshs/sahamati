@@ -1,0 +1,98 @@
+name: Linux build
+
+# Builds the Tauri desktop app for Linux (x86_64) as .deb, .rpm and a
+# portable .AppImage, including the agent-server sidecar. The ffmpeg
+# sidecar is intentionally excluded; tauri.linux.conf.json overrides
+# externalBin so the bundler doesn't require it.
+# Trigger manually via the Actions tab / `gh workflow run`, or on push to
+# the listed branches.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'security/**'
+      - 'ci/**'
+    paths:
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'agent-server/**'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/linux-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    # 22.04 ships webkit2gtk-4.1 and links against an older glibc, so the
+    # AppImage runs on a wider range of distros than a 24.04 build would.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Rust (x86_64-unknown-linux-gnu)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache cargo / Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Install agent-server dependencies
+        working-directory: agent-server
+        # `--trust` ensures the native better-sqlite3-multiple-ciphers postinstall
+        # (prebuild download / node-gyp build) actually runs under Bun.
+        run: bun install --trust
+
+      - name: Ensure sidecar binaries directory
+        run: mkdir -p src-tauri/binaries
+
+      - name: Compile agent-server sidecar (Linux x64)
+        working-directory: agent-server
+        run: bun build --compile --target=bun-linux-x64 src/index.ts --outfile ../src-tauri/binaries/agent-server-x86_64-unknown-linux-gnu
+
+      - name: Verify sidecar binary is present
+        run: ls -l src-tauri/binaries
+
+      - name: Build Tauri app (deb + rpm + AppImage)
+        # tauri.linux.conf.json pins bundle targets; --bundles makes it explicit.
+        run: bun run tauri build --bundles deb,rpm,appimage
+
+      - name: Upload Linux bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: sahamati-linux-bundles
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
