@@ -96,12 +96,28 @@ jobs:
         # and appimagetool are AppImages needing FUSE, which GitHub runners
         # lack, so run them in extract-and-run mode. --verbose surfaces
         # linuxdeploy's real stderr. continue-on-error keeps deb/rpm shippable
-        # while the AppImage path is stabilised.
+        # if the AppImage path regresses.
         continue-on-error: true
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: true
-        run: bun tauri build --bundles appimage --verbose
+        # ldd shim: linuxdeploy's gtk plugin runs `ldd` on every ELF in the
+        # AppDir to copy shared-lib deps. The agent-server sidecar is a
+        # self-contained bun-compiled binary (JS payload appended to the ELF)
+        # that makes ldd exit 1, which aborts linuxdeploy (exit 134). Such a
+        # binary has no deps to deploy, so a wrapper that passes real ldd output
+        # through but never returns non-zero lets bundling finish.
+        run: |
+          shim="$RUNNER_TEMP/ldd-shim"
+          mkdir -p "$shim"
+          {
+            echo '#!/bin/sh'
+            echo '/usr/bin/ldd "$@"'
+            echo 'exit 0'
+          } > "$shim/ldd"
+          chmod +x "$shim/ldd"
+          export PATH="$shim:$PATH"
+          bun tauri build --bundles appimage --verbose
 
       - name: Upload Linux bundles
         uses: actions/upload-artifact@v4
