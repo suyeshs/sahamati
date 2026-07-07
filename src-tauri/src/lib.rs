@@ -132,7 +132,9 @@ pub fn run() {
             // `bun build --compile` can't embed libsql's native addon — libsql require()s its
             // platform package (@libsql/<target>) dynamically at import time, and a native .node
             // can't live inside the single-file binary. So the sidecar needs NODE_PATH pointing at a
-            // node_modules that contains it. Dev uses the source tree; release uses a bundled resource.
+            // node_modules that contains it. Dev uses the source tree; release uses the staged
+            // resource copied by agent-server/scripts/stage-native-deps.mjs (bundle.resources
+            // preserves the src-tauri-relative path, hence "resources/node_modules").
             #[cfg(debug_assertions)]
             let libsql_node_path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .parent()
@@ -143,7 +145,7 @@ pub fn run() {
                 .path()
                 .resource_dir()
                 .expect("resource dir")
-                .join("node_modules");
+                .join("resources/node_modules");
 
             let parent_pid = std::process::id().to_string();
             let sidecar = app
@@ -152,6 +154,21 @@ pub fn run() {
                 .expect("failed to resolve agent-server sidecar")
                 .env("__SAHAMATI_PARENT_PID", parent_pid)
                 .env("NODE_PATH", &libsql_node_path);
+
+            // Installed apps have no repo tree for the sidecar to walk up to, and its
+            // execPath dir (/usr/bin, /Applications/...) isn't writable — give it an
+            // explicit writable root for data/ (DB, pid file) and generated docs.
+            // Dev keeps the repo root discovered by the sidecar itself.
+            #[cfg(not(debug_assertions))]
+            let sidecar = {
+                let data_root = app
+                    .path()
+                    .app_data_dir()
+                    .expect("app data dir");
+                std::fs::create_dir_all(&data_root).ok();
+                sidecar.env("__SAHAMATI_ROOT", &data_root)
+            };
+
             let (mut rx, child) = sidecar.spawn().expect("Failed to start agent server");
 
             app.manage(SidecarState(Mutex::new(Some(child))));

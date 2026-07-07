@@ -72,9 +72,18 @@ jobs:
 
       - name: Install agent-server dependencies
         working-directory: agent-server
-        # `--trust` ensures the native better-sqlite3-multiple-ciphers postinstall
-        # (prebuild download / node-gyp build) actually runs under Bun.
+        # `--trust` lets any native postinstall scripts actually run under Bun.
         run: bun install --trust
+
+      - name: Embed prompts and stage native deps
+        working-directory: agent-server
+        # embed: prompts must be baked into the compiled sidecar (installed
+        # bundles have no source tree). stage: bun can't embed libsql's native
+        # addon, so it ships as a Tauri resource that lib.rs exposes via
+        # NODE_PATH.
+        run: |
+          bun run embed
+          node scripts/stage-native-deps.mjs
 
       - name: Ensure sidecar binaries directory
         run: mkdir -p src-tauri/binaries
@@ -118,6 +127,49 @@ jobs:
           chmod +x "$shim/ldd"
           export PATH="$shim:$PATH"
           bun tauri build --bundles appimage --verbose
+
+      - name: Verify AppImage sidecar integrity (repair if modified)
+        # linuxdeploy runs patchelf/strip over every ELF in the AppDir. The
+        # bun-compiled sidecar carries its JS payload at fixed offsets in the
+        # ELF, so any rewrite corrupts it (ld.so segfaults during relocation —
+        # seen in v0.2.0 as a +4096-byte sidecar with an unchanged BuildID).
+        # It is self-contained and needs no rpath, so if bundling touched it,
+        # restore the pristine binary and repack the AppImage.
+        continue-on-error: true
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          ARCH: x86_64
+        run: |
+          set -euo pipefail
+          pristine="$PWD/src-tauri/binaries/agent-server-x86_64-unknown-linux-gnu"
+          bundle_dir="$PWD/src-tauri/target/release/bundle/appimage"
+          appimage=$(ls "$bundle_dir"/*.AppImage 2>/dev/null | head -n1 || true)
+          if [ -z "$appimage" ]; then
+            echo "No AppImage produced — nothing to verify"
+            exit 0
+          fi
+          workdir="$RUNNER_TEMP/appimage-verify"
+          rm -rf "$workdir" && mkdir -p "$workdir" && cd "$workdir"
+          "$appimage" --appimage-extract >/dev/null
+          shipped="squashfs-root/usr/bin/agent-server"
+          if cmp -s "$shipped" "$pristine"; then
+            echo "OK: AppImage sidecar is byte-identical to the compiled binary"
+            exit 0
+          fi
+          echo "AppImage sidecar differs from the compiled binary — repairing"
+          ls -l "$shipped" "$pristine"
+          cp -f "$pristine" "$shipped"
+          chmod 755 "$shipped"
+          curl -fsSL -o appimagetool \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ./appimagetool squashfs-root repacked.AppImage
+          mv -f repacked.AppImage "$appimage"
+          # Re-extract and prove the shipped artifact now matches
+          rm -rf squashfs-root
+          "$appimage" --appimage-extract >/dev/null
+          cmp "$shipped" "$pristine"
+          echo "Repaired AppImage verified: sidecar byte-identical"
 
       - name: Upload Linux bundles
         uses: actions/upload-artifact@v4

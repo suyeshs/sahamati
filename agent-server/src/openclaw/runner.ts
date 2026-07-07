@@ -3,6 +3,7 @@ import { join, resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { queryViaCli } from "../claudecode/runner.js";
 import { getRunnerMode } from "../runner-config.js";
+import { EMBEDDED_PROMPTS } from "../agents/embedded-prompts.js";
 
 // Lazy-load the SDK only when needed (avoids credit check on import in CLI mode)
 let _query: typeof import("@anthropic-ai/claude-agent-sdk").query | null = null;
@@ -562,10 +563,9 @@ function seedSimpleAgent(def: {
 function readBuiltInPrompt(filename: string): string {
   const promptPath = join(PROJECT_ROOT, "agent-server/src/prompts", filename);
   if (existsSync(promptPath)) return readFileSync(promptPath, "utf-8");
-  // Fallback for bundled binary
-  const altPath = join(__dirname, "../prompts", filename);
-  if (existsSync(altPath)) return readFileSync(altPath, "utf-8");
-  return "";
+  // Compiled binaries / installed bundles have no source tree — use the
+  // copy embedded at build time.
+  return EMBEDDED_PROMPTS[filename] ?? "";
 }
 
 export { WORKSPACE_ROOT };

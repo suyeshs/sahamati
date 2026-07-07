@@ -59,6 +59,8 @@ cloud/public/docs/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/binaries/
+# Staged native deps for the sidecar (agent-server/scripts/stage-native-deps.mjs)
+src-tauri/resources/
 
 # Compiled agent server
 agent-server/agent-server-*

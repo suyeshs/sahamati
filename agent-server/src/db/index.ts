@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync, chmodSync, existsSync, mkdirSync } from "f
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { randomBytes } from "crypto";
+import { EMBEDDED_MIGRATIONS } from "./embedded-migrations.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isBunBinary = __dirname.startsWith("/$bunfs");
@@ -95,13 +96,17 @@ function runMigrations() {
   for (const filename of migrationFiles) {
     if (applied.has(filename)) continue;
 
+    // Dev reads the source tree; compiled binaries fall back to the copies
+    // embedded at build time (installed bundles ship no source tree). A
+    // migration that can't be found anywhere is a build defect — fail loudly
+    // rather than start with a partial schema.
     const filePath = join(MIGRATIONS_DIR, filename);
-    if (!existsSync(filePath)) {
-      console.warn(`Migration file not found: ${filePath}`);
-      continue;
+    const sql = existsSync(filePath)
+      ? readFileSync(filePath, "utf-8")
+      : EMBEDDED_MIGRATIONS[filename];
+    if (sql === undefined) {
+      throw new Error(`Migration ${filename} not found on disk or embedded`);
     }
-
-    const sql = readFileSync(filePath, "utf-8");
 
     db.transaction(() => {
       db.exec(sql);

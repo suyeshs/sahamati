@@ -1,6 +1,6 @@
-import { resolve, dirname, join } from "path";
+import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
-import { readFileSync, existsSync } from "fs";
+import { readPrompt } from "./agents/read-prompt.js";
 import * as openclawRunner from "./openclaw/runner.js";
 import { queryViaCli } from "./claudecode/runner.js";
 import { getRunnerMode } from "./runner-config.js";
@@ -24,28 +24,13 @@ type SdkMcpServers = NonNullable<
 import { discoveryAgent, requirementsAgent, knowledgeAgent, processDocsAgent, evernoteAgent, securityAgent, owaspAgent, vaptAgent, videoAgent } from "./agents/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const isBunBinary = __dirname.startsWith("/$bunfs");
 
-// Resolve prompts dir — walk up from execPath in compiled mode
-function findPromptsDir(): string {
-  if (!isBunBinary) return join(__dirname, "prompts");
-  let dir = dirname(process.execPath);
-  for (let i = 0; i < 10; i++) {
-    const candidate = resolve(dir, "agent-server/src/prompts");
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return join(__dirname, "prompts");
-}
-
-const orchestratorPrompt = readFileSync(join(findPromptsDir(), "orchestrator.md"), "utf-8");
+const orchestratorPrompt = readPrompt("orchestrator.md");
 // Loaded lazily so a missing prompt file doesn't break the rest of the orchestrator.
 let _secretOrchestratorPrompt: string | null = null;
 function getSecretOrchestratorPrompt(): string {
   if (_secretOrchestratorPrompt === null) {
-    _secretOrchestratorPrompt = readFileSync(join(findPromptsDir(), "secret-orchestrator.md"), "utf-8");
+    _secretOrchestratorPrompt = readPrompt("secret-orchestrator.md");
   }
   return _secretOrchestratorPrompt;
 }

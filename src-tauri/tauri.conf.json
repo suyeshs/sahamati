@@ -45,7 +45,8 @@
     ],
     "resources": [
       "../docs/**/*.md",
-      "../*.md"
+      "../*.md",
+      "resources/node_modules/**/*"
     ]
   }
 }

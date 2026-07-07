@@ -1,38 +1,29 @@
-// Helper to read prompt .md files that works in both dev (tsx) and compiled (bun binary) modes
+// Prompt loading. In dev (tsx) prompts are read from src/prompts so edits
+// take effect on reload. Compiled binaries and installed desktop bundles have
+// no source tree on disk, so they fall back to the copies embedded at build
+// time by scripts/embed-assets.mjs.
 
-import { readFileSync, existsSync } from "fs";
-import { dirname, join, resolve } from "path";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
+import { EMBEDDED_PROMPTS } from "./embedded-prompts.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const isBunBinary = __dirname.startsWith("/$bunfs");
 
-let promptsDir: string;
-
-if (isBunBinary) {
-  // Walk up from execPath looking for agent-server/src/prompts/
-  let dir = dirname(process.execPath);
-  let found = false;
-  for (let i = 0; i < 10; i++) {
-    const candidate = resolve(dir, "agent-server/package.json");
-    if (existsSync(candidate)) {
-      promptsDir = resolve(dir, "agent-server/src/prompts");
-      found = true;
-      break;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  if (!found) {
-    // Fallback: assume prompts are next to the source
-    promptsDir = join(__dirname, "../prompts");
-  }
-} else {
-  promptsDir = join(__dirname, "../prompts");
-}
-
 export function readPrompt(filename: string): string {
-  const filePath = join(promptsDir, filename);
-  return readFileSync(filePath, "utf-8");
+  if (!isBunBinary) {
+    try {
+      return readFileSync(join(__dirname, "../prompts", filename), "utf-8");
+    } catch {
+      // tsc dist builds don't copy .md files — use the embedded copy.
+    }
+  }
+  const embedded = EMBEDDED_PROMPTS[filename];
+  if (embedded === undefined) {
+    throw new Error(
+      `Prompt "${filename}" is not embedded — run \`bun run embed\` in agent-server/ and recompile`
+    );
+  }
+  return embedded;
 }

@@ -51,7 +51,9 @@ function findProjectRoot(): string {
   return dirname(process.execPath);
 }
 
-process.env.__SAHAMATI_ROOT = findProjectRoot();
+// The Tauri shell pre-sets __SAHAMATI_ROOT in installed (release) builds —
+// there is no repo tree to discover and execPath's dir isn't writable there.
+process.env.__SAHAMATI_ROOT = process.env.__SAHAMATI_ROOT || findProjectRoot();
 
 const envPath = findEnvFile();
 let envLoaded = 0;

@@ -49,9 +49,18 @@ jobs:
 
       - name: Install agent-server dependencies
         working-directory: agent-server
-        # `--trust` ensures the native better-sqlite3-multiple-ciphers postinstall
-        # (prebuild download / node-gyp build) actually runs under Bun.
+        # `--trust` lets any native postinstall scripts actually run under Bun.
         run: bun install --trust
+
+      - name: Embed prompts and stage native deps
+        working-directory: agent-server
+        # embed: prompts must be baked into the compiled sidecar (installed
+        # bundles have no source tree). stage: bun can't embed libsql's native
+        # addon, so it ships as a Tauri resource that lib.rs exposes via
+        # NODE_PATH.
+        run: |
+          bun run embed
+          node scripts/stage-native-deps.mjs
 
       - name: Ensure sidecar binaries directory
         shell: pwsh

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "build:agent-server": "cd agent-server && bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile ../src-tauri/binaries/agent-server-aarch64-apple-darwin && cp ../src-tauri/binaries/agent-server-aarch64-apple-darwin ../src-tauri/target/debug/agent-server 2>/dev/null || true",
+    "build:agent-server": "cd agent-server && bun run embed && node scripts/stage-native-deps.mjs && bun build --compile --target=bun-darwin-arm64 src/index.ts --outfile ../src-tauri/binaries/agent-server-aarch64-apple-darwin && cp ../src-tauri/binaries/agent-server-aarch64-apple-darwin ../src-tauri/target/debug/agent-server 2>/dev/null || true",
     "preview": "vite preview",
     "tauri": "tauri"
   },
