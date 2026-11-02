@@ -111,20 +111,6 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![read_resource_file])
         .setup(|app| {
-            // Translucent macOS window behind the title bar + frosted sidebar.
-            #[cfg(target_os = "macos")]
-            {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = apply_vibrancy(
-                        &window,
-                        NSVisualEffectMaterial::Sidebar,
-                        Some(NSVisualEffectState::Active),
-                        None,
-                    );
-                }
-            }
-
             if let Err(err) = setup_tray(app) {
                 eprintln!("[tray] failed to set up tray icon: {}", err);
             }

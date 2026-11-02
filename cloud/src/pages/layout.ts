@@ -61,6 +61,8 @@ export function layout(title: string, user: User | null, body: string): string {
     .markdown-body th { background: #f9fafb; font-weight: 600; }
     .markdown-body blockquote { border-left: 3px solid #6366f1; padding-left: 1rem; margin: 0.75rem 0; color: #6b7280; }
     .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.5rem 0; }
+    .markdown-body pre.mermaid { background: #fff; color: inherit; text-align: center; border: 1px solid #e5e7eb; }
+    .markdown-body pre.mermaid svg { max-width: 100%; height: auto; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">

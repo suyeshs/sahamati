@@ -13,7 +13,7 @@ function authedFetch(path: string, init: RequestInit = {}): Promise<Response> {
   }).then(handleAuthFailure);
 }
 
-export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "evernote" | "security" | "owasp" | "vapt" | "video" | "orchestrator" | "openclaw";
+export type AgentType = "discovery" | "requirements" | "knowledge" | "process-docs" | "evernote" | "mail-e" | "rankmath" | "security" | "owasp" | "vapt" | "video" | "orchestrator" | "openclaw";
 
 export interface GitHubFileRef {
   owner: string;
@@ -152,6 +152,27 @@ export async function checkHealth(): Promise<{ status: string; agents: string[] 
   return res.json();
 }
 
+export interface RankMathConfigStatus {
+  configured: boolean;
+  siteUrl: string | null;
+}
+
+export async function getRankMathConfig(): Promise<RankMathConfigStatus> {
+  const res = await authedFetch("/api/agent/rankmath/config");
+  if (!res.ok) throw new Error("Failed to load Rank Math status");
+  return res.json();
+}
+
+export interface MailEConfigStatus {
+  configured: boolean;
+}
+
+export async function getMailEConfig(): Promise<MailEConfigStatus> {
+  const res = await authedFetch("/api/agent/mail-e/config");
+  if (!res.ok) throw new Error("Failed to load mail-e status");
+  return res.json();
+}
+
 // ---- OpenClaw Agent API ----
 
 export interface OpenClawAgentSummary {
@@ -184,6 +205,23 @@ export interface NewOpenClawAgentRequest {
   identity: string;
   llmProvider: string;
   llmModel: string;
+}
+
+export interface BuiltInAgentSummary {
+  name: string;
+  displayName: string;
+  description: string;
+  model: string;
+  maxTurns: number;
+  tools: string[];
+  surface: "project-workflows" | "defender" | "agent-studio" | "orchestrator";
+  prompt: string;
+}
+
+export async function listBuiltInAgents(): Promise<BuiltInAgentSummary[]> {
+  const res = await authedFetch(`/api/agents/builtin`);
+  const data = (await res.json()) as { agents: BuiltInAgentSummary[] };
+  return data.agents;
 }
 
 export async function listOpenClawAgents(): Promise<OpenClawAgentSummary[]> {

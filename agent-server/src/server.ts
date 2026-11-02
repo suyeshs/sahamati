@@ -4,7 +4,7 @@ import { streamSSE } from "hono/streaming";
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { resolve, dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { runOrchestrator, runDirectAgent } from "./orchestrator.js";
+import { runOrchestrator, runDirectAgent, listBuiltInAgents } from "./orchestrator.js";
 import type { AgentRunRequest, AppEnv, GeneratedDoc, NewOpenClawAgentRequest, UpdateOpenClawAgentRequest } from "./types.js";
 import authRoutes from "./auth/routes.js";
 import githubAuthRoutes from "./auth/github-routes.js";
@@ -18,12 +18,15 @@ import claudecodeAuthRoutes from "./routes/claudecode-auth.js";
 import secretsRoutes from "./routes/secrets.js";
 import deploymentRoutes from "./routes/deployments.js";
 import localDocsRoutes from "./routes/local-docs.js";
+import defenderRoutes from "./routes/defender.js";
 import { startSessionCleanup } from "./auth/session-store.js";
 import { authMiddleware } from "./middleware/auth-middleware.js";
 import { getGitHubToken } from "./auth/github-store.js";
 import * as openclawRunner from "./openclaw/runner.js";
 import { searchSkills as searchClawHubSkills, getSkillDetail } from "./openclaw/skill-hub.js";
 import { getRunnerMode } from "./runner-config.js";
+import { rankMathMcpServer } from "./tools/rankmath.js";
+import { gmailConfigured } from "./tools/gmail-client.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = process.env.__SAHAMATI_ROOT || resolve(__dirname, "../..");
@@ -55,6 +58,7 @@ app.route("/", claudecodeAuthRoutes);
 app.route("/", secretsRoutes);
 app.route("/", deploymentRoutes);
 app.route("/", localDocsRoutes);
+app.route("/", defenderRoutes);
 
 startSessionCleanup();
 
@@ -64,16 +68,37 @@ startSessionCleanup();
 app.use("/api/agent/*", authMiddleware);
 app.use("/api/openclaw/*", authMiddleware);
 app.use("/api/docs/*", authMiddleware);
+app.use("/api/defender/*", authMiddleware);
+app.use("/api/agents/*", authMiddleware);
+
+// Code-defined agents for Agent Studio's read-only "Built-in" list.
+app.get("/api/agents/builtin", (c) => c.json({ agents: listBuiltInAgents() }));
 
 // Health check
 app.get("/health", (c) => {
   const openclawAgents = openclawRunner.listAgents();
   return c.json({
     status: "ok",
-    agents: ["discovery", "requirements", "knowledge", "process-docs", "evernote", "security", "owasp", "vapt", "video"],
+    agents: ["discovery", "requirements", "knowledge", "process-docs", "evernote", "mail-e", "rankmath", "security", "owasp", "vapt", "video"],
     openclawAgentCount: openclawAgents.length,
     runnerMode: getRunnerMode(),
   });
+});
+
+// Rank Math connection status for the UI — reports whether the env-based MCP
+// config resolves, never the credentials themselves.
+app.get("/api/agent/rankmath/config", (c) => {
+  const configured = rankMathMcpServer() !== null;
+  return c.json({
+    configured,
+    siteUrl: configured ? process.env.RANKMATH_WP_URL ?? null : null,
+  });
+});
+
+// mail-e (Gmail) connection status for the UI — reports whether the env-based
+// credentials resolve, never the credentials themselves.
+app.get("/api/agent/mail-e/config", (c) => {
+  return c.json({ configured: gmailConfigured() });
 });
 
 // Run orchestrator or specific agent via SSE
@@ -118,7 +143,7 @@ app.post("/api/agent/run", async (c) => {
           onMessage,
         });
       } else if (agentType && agentType !== "orchestrator" && agentType !== "openclaw") {
-        const agentKey = `${agentType}-agent` as "discovery-agent" | "requirements-agent" | "knowledge-agent" | "process-docs-agent" | "evernote-agent" | "security-agent" | "owasp-agent" | "vapt-agent" | "video-agent";
+        const agentKey = `${agentType}-agent` as "discovery-agent" | "requirements-agent" | "knowledge-agent" | "process-docs-agent" | "evernote-agent" | "mail-e-agent" | "rankmath-agent" | "security-agent" | "owasp-agent" | "vapt-agent" | "video-agent";
         await runDirectAgent(agentKey, prompt, {
           sessionId,
           cwd: PROJECT_ROOT,

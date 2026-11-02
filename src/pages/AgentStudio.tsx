@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
+  listBuiltInAgents,
+  type BuiltInAgentSummary,
   listOpenClawAgents,
   getOpenClawAgent,
   createOpenClawAgent,
@@ -12,15 +14,19 @@ import {
   updateSkillContent,
   searchClawHubSkills,
   installSkillFromClawHub,
+  getRankMathConfig,
+  getMailEConfig,
   type OpenClawAgentSummary,
   type OpenClawAgentConfig,
   type SkillInfo,
   type ClawHubSkill,
+  type RankMathConfigStatus,
+  type MailEConfigStatus,
 } from "../lib/agent-api";
 import AgentRunner from "../components/AgentRunner";
 
 type Tab = "soul" | "tools" | "identity" | "skills" | "config" | "run";
-type View = "list" | "create" | "edit";
+type View = "list" | "create" | "edit" | "rankmath" | "mail-e" | "builtin";
 
 const LLM_PROVIDERS = [
   { value: "anthropic", label: "Anthropic (Claude)" },
@@ -46,6 +52,8 @@ const MODELS_BY_PROVIDER: Record<string, Array<{ value: string; label: string }>
 
 export default function AgentStudio() {
   const [agents, setAgents] = useState<OpenClawAgentSummary[]>([]);
+  const [builtIns, setBuiltIns] = useState<BuiltInAgentSummary[]>([]);
+  const [selectedBuiltIn, setSelectedBuiltIn] = useState<BuiltInAgentSummary | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<OpenClawAgentConfig | null>(null);
   const [view, setView] = useState<View>("list");
   const [activeTab, setActiveTab] = useState<Tab>("soul");
@@ -75,6 +83,12 @@ export default function AgentStudio() {
     llmModel: "",
   });
 
+  // Built-in Rank Math agent connection status
+  const [rankMathStatus, setRankMathStatus] = useState<RankMathConfigStatus | null>(null);
+
+  // Built-in mail-e agent connection status
+  const [mailEStatus, setMailEStatus] = useState<MailEConfigStatus | null>(null);
+
   // Skills state
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [clawHubQuery, setClawHubQuery] = useState("");
@@ -86,6 +100,7 @@ export default function AgentStudio() {
 
   const loadAgents = useCallback(async () => {
     try {
+      listBuiltInAgents().then(setBuiltIns).catch(() => setBuiltIns([]));
       const list = await listOpenClawAgents();
       setAgents(list);
     } catch {
@@ -96,6 +111,28 @@ export default function AgentStudio() {
   useEffect(() => {
     loadAgents();
   }, [loadAgents]);
+
+  const handleSelectRankMath = async () => {
+    setSelectedAgent(null);
+    setView("rankmath");
+    setError("");
+    try {
+      setRankMathStatus(await getRankMathConfig());
+    } catch {
+      setRankMathStatus(null);
+    }
+  };
+
+  const handleSelectMailE = async () => {
+    setSelectedAgent(null);
+    setView("mail-e");
+    setError("");
+    try {
+      setMailEStatus(await getMailEConfig());
+    } catch {
+      setMailEStatus(null);
+    }
+  };
 
   const handleSelectAgent = async (name: string) => {
     setLoading(true);
@@ -292,6 +329,43 @@ export default function AgentStudio() {
               </div>
             ))}
           </div>
+
+          <p style={{ margin: "1.25rem 0 0.5rem", fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--text-muted)" }}>
+            Built-in
+          </p>
+          <div className="agent-list">
+            <div
+              className={`agent-list-item ${view === "rankmath" ? "active" : ""}`}
+              onClick={handleSelectRankMath}
+            >
+              <div className="agent-list-item-name">Rank Math SEO</div>
+              <div className="agent-list-item-meta">anthropic / sonnet &middot; WordPress MCP</div>
+            </div>
+            <div
+              className={`agent-list-item ${view === "mail-e" ? "active" : ""}`}
+              onClick={handleSelectMailE}
+            >
+              <div className="agent-list-item-name">mail-e</div>
+              <div className="agent-list-item-meta">anthropic / sonnet &middot; Gmail triage</div>
+            </div>
+            {builtIns
+              .filter((b) => b.name !== "rankmath-agent" && b.name !== "mail-e-agent")
+              .map((b) => (
+                <div
+                  key={b.name}
+                  className={`agent-list-item ${view === "builtin" && selectedBuiltIn?.name === b.name ? "active" : ""}`}
+                  onClick={() => {
+                    setSelectedBuiltIn(b);
+                    setView("builtin");
+                  }}
+                >
+                  <div className="agent-list-item-name">{b.displayName}</div>
+                  <div className="agent-list-item-meta">
+                    anthropic / {b.model} &middot; {b.surface === "defender" ? "Defender" : b.surface === "project-workflows" ? "Project workflows" : "Agent Studio"}
+                  </div>
+                </div>
+              ))}
+          </div>
         </div>
 
         {/* Main panel */}
@@ -304,6 +378,167 @@ export default function AgentStudio() {
                 Agents use the OpenClaw format: <strong>SOUL.md</strong> defines purpose,{" "}
                 <strong>TOOLS.md</strong> defines capabilities, and <strong>IDENTITY.md</strong> sets personality.
               </p>
+            </div>
+          )}
+
+          {view === "builtin" && selectedBuiltIn && (
+            <div className="agent-studio-form">
+              <div className="agent-editor-header">
+                <h3>{selectedBuiltIn.displayName}</h3>
+                <span className="agent-badge" style={{ padding: "0.2rem 0.6rem", borderRadius: "999px", fontSize: "0.75rem", background: "var(--bg-dark)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>
+                  code-defined, read-only
+                </span>
+              </div>
+              <p style={{ color: "var(--text-muted)" }}>{selectedBuiltIn.description}</p>
+              <p style={{ fontSize: "0.85rem" }}>
+                This agent is defined in version control (<code>agent-server/src/agents/{selectedBuiltIn.name.replace(/-agent$/, "")}.ts</code> and its prompt), so changes go through a pull request rather than this editor.
+                {selectedBuiltIn.surface === "defender" && (
+                  <> It runs from a project's <strong>Defender</strong> page: triage runs after a scan, patch runs on the findings you select.</>
+                )}
+                {selectedBuiltIn.surface === "project-workflows" && <> It runs from a project's <strong>Workflows</strong> page.</>}
+              </p>
+              <dl className="builtin-agent-facts">
+                <dt>Model</dt>
+                <dd>{selectedBuiltIn.model}</dd>
+                <dt>Max turns</dt>
+                <dd>{selectedBuiltIn.maxTurns}</dd>
+                <dt>Tools</dt>
+                <dd>
+                  {selectedBuiltIn.tools.map((t) => (
+                    <code key={t} className="builtin-agent-tool">{t.replace("mcp__defender__", "defender.")}</code>
+                  ))}
+                </dd>
+              </dl>
+              <h4 style={{ margin: "1rem 0 0.5rem" }}>System prompt</h4>
+              <pre className="builtin-agent-prompt">{selectedBuiltIn.prompt}</pre>
+            </div>
+          )}
+
+          {view === "rankmath" && (
+            <div className="agent-studio-form">
+              <div className="agent-editor-header">
+                <h3>Rank Math SEO</h3>
+                {rankMathStatus && (
+                  <span
+                    className={rankMathStatus.configured ? "integration-badge-connected" : "agent-badge"}
+                    style={
+                      rankMathStatus.configured
+                        ? undefined
+                        : { padding: "0.2rem 0.6rem", borderRadius: "999px", fontSize: "0.75rem", background: "var(--bg-secondary, #eee)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }
+                    }
+                  >
+                    {rankMathStatus.configured ? "Connected" : "Not configured"}
+                  </span>
+                )}
+              </div>
+
+              <p style={{ color: "var(--text-muted)" }}>
+                Built-in agent that fetches WordPress SEO data from the Rank Math plugin's MCP server —
+                site audits, post SEO meta, link reports, and schema. It is read-only unless you
+                explicitly ask it to apply audit fixes.
+              </p>
+
+              {rankMathStatus?.configured ? (
+                <p>
+                  Connected to <strong>{rankMathStatus.siteUrl}</strong>. Use the runner below to
+                  pull SEO data — e.g. "Run a site SEO audit" or "Show the SEO meta for post 42".
+                </p>
+              ) : (
+                <div style={{ border: "1px solid var(--border-color)", borderRadius: "0.5rem", padding: "1rem 1.25rem", margin: "1rem 0" }}>
+                  <h4 style={{ marginTop: 0 }}>Configuration steps</h4>
+                  <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.8 }}>
+                    <li>
+                      On the WordPress site, install or update the <strong>Rank Math SEO</strong> plugin
+                      to version <strong>1.0.272 or newer</strong> — its MCP server is built in, no toggle needed.
+                    </li>
+                    <li>
+                      In WordPress, go to <strong>Users → Profile → Application Passwords</strong> and
+                      create a named password (e.g. <code>sahamati-agent</code>). Use this — never the
+                      account's login password.
+                    </li>
+                    <li>
+                      Add the credentials to <code>agent-server/.env</code> (gitignored — never commit them):
+                      <pre style={{ background: "var(--code-bg, #1a1a2e)", color: "var(--code-text, #e2e8f0)", padding: "0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem", overflowX: "auto" }}>
+{`RANKMATH_WP_URL=https://your-site.example.com
+RANKMATH_WP_USERNAME=your-wp-username
+RANKMATH_WP_APP_PASSWORD=xxxx xxxx xxxx xxxx`}
+                      </pre>
+                    </li>
+                    <li>Restart the agent server, then reopen this page — the badge above turns to "Connected".</li>
+                  </ol>
+                </div>
+              )}
+
+              <AgentRunner
+                agentType="rankmath"
+                title="Run Rank Math SEO"
+                description="Ask for SEO data from the connected WordPress site."
+                placeholder='e.g. "Run a site SEO audit and summarize the failing tests"'
+              />
+            </div>
+          )}
+
+          {view === "mail-e" && (
+            <div className="agent-studio-form">
+              <div className="agent-editor-header">
+                <h3>mail-e</h3>
+                {mailEStatus && (
+                  <span
+                    className={mailEStatus.configured ? "integration-badge-connected" : "agent-badge"}
+                    style={
+                      mailEStatus.configured
+                        ? undefined
+                        : { padding: "0.2rem 0.6rem", borderRadius: "999px", fontSize: "0.75rem", background: "var(--bg-secondary, #eee)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }
+                    }
+                  >
+                    {mailEStatus.configured ? "Connected" : "Not configured"}
+                  </span>
+                )}
+              </div>
+
+              <p style={{ color: "var(--text-muted)" }}>
+                Built-in agent that triages your incoming Gmail — it classifies messages as directly
+                addressed to you, mentioning you by name, cc/FYI, or list/broadcast, and surfaces the
+                ones that need action. Strictly read-only: it cannot send, label, or delete mail.
+              </p>
+
+              {mailEStatus?.configured ? (
+                <p>
+                  Gmail is connected. Use the runner below — e.g. "Triage my inbox from the last
+                  7 days" or "Anything addressed directly to me since yesterday?".
+                </p>
+              ) : (
+                <div style={{ border: "1px solid var(--border-color)", borderRadius: "0.5rem", padding: "1rem 1.25rem", margin: "1rem 0" }}>
+                  <h4 style={{ marginTop: 0 }}>Configuration steps</h4>
+                  <ol style={{ margin: 0, paddingLeft: "1.25rem", lineHeight: 1.8 }}>
+                    <li>
+                      In Google Cloud Console, create an <strong>OAuth client</strong> (type:
+                      Desktop app) with the <strong>Gmail API</strong> enabled.
+                    </li>
+                    <li>
+                      Put the client credentials in <code>agent-server/.env</code> (gitignored — never commit them):
+                      <pre style={{ background: "var(--code-bg, #1a1a2e)", color: "var(--code-text, #e2e8f0)", padding: "0.75rem", borderRadius: "0.375rem", fontSize: "0.8rem", overflowX: "auto" }}>
+{`GMAIL_CLIENT_ID=...
+GMAIL_CLIENT_SECRET=...`}
+                      </pre>
+                    </li>
+                    <li>
+                      From <code>agent-server/</code>, run <code>bun run --env-file=.env scripts/gmail-auth.ts</code>,
+                      sign in with your @sahamati.org.in account, and add the printed{" "}
+                      <code>GMAIL_REFRESH_TOKEN</code> to <code>.env</code>. Access is read-only
+                      (<code>gmail.readonly</code>).
+                    </li>
+                    <li>Restart the agent server, then reopen this page — the badge above turns to "Connected".</li>
+                  </ol>
+                </div>
+              )}
+
+              <AgentRunner
+                agentType="mail-e"
+                title="Run mail-e"
+                description="Ask for a triage of your incoming mail."
+                placeholder='e.g. "Go through the last 7 days of my inbox and tell me what needs my attention"'
+              />
             </div>
           )}
 

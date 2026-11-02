@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { runAgent, type AgentType } from "../lib/agent-api";
 import { runProjectAgent, triggerSync, listDocuments, type DocumentWithPhase } from "../lib/project-api";
 import GitHubFilePicker, { type GitHubFileSelection } from "./GitHubFilePicker";
+import { markdownComponents } from "./MarkdownViewer";
 import { notify } from "../lib/notify";
 
 interface AgentRunnerProps {
@@ -269,7 +270,7 @@ export default function AgentRunner({
         <div className="agent-runner-output">
           <h4>Agent Output</h4>
           <div className="md-viewer">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{output}</ReactMarkdown>
           </div>
         </div>
       )}

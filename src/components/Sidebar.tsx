@@ -11,6 +11,7 @@ const PROJECT_NAV_ITEMS = [
   { to: "", label: "Dashboard", end: true },
   { to: "/docs", label: "Documents", end: false },
   { to: "/workflows", label: "Workflows", end: false },
+  { to: "/defender", label: "Defender", end: false },
   { to: "/members", label: "Members", end: false },
   { to: "/settings", label: "Settings", end: false },
 ];
@@ -64,6 +65,14 @@ export default function Sidebar({ mode }: SidebarProps) {
                 className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
               >
                 Local Docs
+              </NavLink>
+            </li>
+            <li>
+              <NavLink
+                to="/security"
+                className={({ isActive }) => `sidebar-link ${isActive ? "active" : ""}`}
+              >
+                Security Posture
               </NavLink>
             </li>
             {/* Secrets hidden for now */}

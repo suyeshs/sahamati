@@ -25,7 +25,7 @@ import { requireProjectPermission } from "../middleware/rbac-middleware.js";
 import { runDirectAgent } from "../orchestrator.js";
 import { getGitHubToken } from "../auth/github-store.js";
 import { recordChange } from "../sync/sync-engine.js";
-import { resolve, dirname, join } from "path";
+import { resolve, dirname, join, basename } from "path";
 import { fileURLToPath } from "url";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, copyFileSync, unlinkSync, rmSync } from "fs";
 
@@ -311,7 +311,13 @@ projects.post(
       return c.json({ error: "title and content are required" }, 400);
     }
 
-    const docFilename = filename || `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.md`;
+    // basename + charset allowlist: the filename comes from the client and is
+    // joined into a filesystem path — never let it traverse out of the project dir.
+    const safeName = basename(String(filename || "")).replace(/[^a-zA-Z0-9._-]+/g, "-");
+    const docFilename =
+      safeName && safeName !== "." && safeName !== ".."
+        ? safeName
+        : `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.md`;
     const phaseName = phaseId ? "phase" : "general";
     const relPath = join(phaseName, docFilename);
     const fullPath = join(DATA_DIR, slug, relPath);

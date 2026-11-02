@@ -47,6 +47,18 @@ function makeFinding(partial: Partial<Finding> & Pick<Finding, "fingerprint" | "
     status: partial.status ?? "open",
     first_seen_scan_id: partial.first_seen_scan_id ?? null,
     created_at: partial.created_at ?? "now",
+    ecosystem: partial.ecosystem ?? null,
+    package: partial.package ?? null,
+    installed_version: partial.installed_version ?? null,
+    fixed_version: partial.fixed_version ?? null,
+    advisory_ids: partial.advisory_ids ?? null,
+    manifest_path: partial.manifest_path ?? null,
+    is_direct: partial.is_direct ?? null,
+    priority: partial.priority ?? null,
+    reachability: partial.reachability ?? null,
+    triage_note: partial.triage_note ?? null,
+    remediation_pr_url: partial.remediation_pr_url ?? null,
+    status_changed_at: partial.status_changed_at ?? null,
   };
 }
 

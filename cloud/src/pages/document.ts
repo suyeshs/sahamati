@@ -42,18 +42,36 @@ export function documentPage(user: User, project: Row, doc: Row): string {
             </div>`
         }
       </div>
-    </main>`
+    </main>
+    ${renderedContent.includes('class="mermaid"') ? MERMAID_SCRIPT : ""}`
   );
 }
+
+// Loaded only on pages that actually contain a diagram — mermaid is ~2 MB.
+const MERMAID_SCRIPT = `<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });
+</script>`;
 
 function renderMarkdown(md: string): string {
   if (!md) return "";
 
   let html = escapeHtml(md);
 
-  // Code blocks (``` ... ```)
+  // Code blocks (``` ... ```) — extracted to placeholders FIRST so the
+  // line-oriented transforms below (lists, hr, paragraphs) can't rewrite code
+  // or mermaid syntax like `A --> B` / `---`. Reinserted at the end. The
+  // placeholder starts with `<x` so the paragraph-wrap regex skips it.
+  const blocks: string[] = [];
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
-    return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    // Mermaid fences become diagram elements rendered client-side; the
+    // content stays HTML-escaped — mermaid reads textContent, which unescapes.
+    const rendered =
+      lang === "mermaid"
+        ? `<pre class="mermaid">${code.trim()}</pre>`
+        : `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    blocks.push(rendered);
+    return `<x-code-block data-i="${blocks.length - 1}"></x-code-block>`;
   });
 
   // Inline code
@@ -118,6 +136,9 @@ function renderMarkdown(md: string): string {
 
   // Clean up empty paragraphs
   html = html.replace(/<p>\s*<\/p>/g, "");
+
+  // Reinsert extracted code blocks
+  html = html.replace(/<x-code-block data-i="(\d+)"><\/x-code-block>/g, (_m, i) => blocks[Number(i)]);
 
   return html;
 }

@@ -62,6 +62,19 @@ const INTEGRATIONS: IntegrationDef[] = [
     ],
   },
   {
+    id: "google-mail",
+    name: "Google Mail",
+    description: "Give the mail-e agent read access to your mailbox so it can run against your email. Uses your Google sign-in with Gmail scopes.",
+    icon: "✉️",
+    color: "#EA4335",
+    authMode: "oauth",
+    scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
+    fields: [
+      { key: "labelFilter", label: "Label Filter", type: "text", placeholder: "INBOX or a custom label" },
+      { key: "lookback", label: "Lookback Window", type: "select", options: ["7 days", "30 days", "90 days", "All mail"] },
+    ],
+  },
+  {
     id: "evernote",
     name: "Evernote",
     description: "Search and sync notes from your Evernote workspace. Create notes from generated documentation.",
@@ -72,6 +85,19 @@ const INTEGRATIONS: IntegrationDef[] = [
       { key: "devToken", label: "Developer Token", type: "password", placeholder: "S=s1:U=..." },
       { key: "sandbox", label: "Environment", type: "select", options: ["Production", "Sandbox"] },
       { key: "defaultNotebook", label: "Default Notebook", type: "text", placeholder: "Notebook name or GUID" },
+    ],
+  },
+  {
+    id: "rankmath",
+    name: "Rank Math SEO",
+    description: "Read SEO data from a WordPress site running Rank Math — site audits, post SEO meta, link reports, and schema.",
+    icon: "🔍",
+    color: "#B92A70",
+    authMode: "token",
+    fields: [
+      { key: "siteUrl", label: "WordPress Site URL", type: "text", placeholder: "https://blog.example.com" },
+      { key: "username", label: "WordPress Username", type: "text", placeholder: "editor" },
+      { key: "appPassword", label: "Application Password", type: "password", placeholder: "xxxx xxxx xxxx xxxx" },
     ],
   },
 ];

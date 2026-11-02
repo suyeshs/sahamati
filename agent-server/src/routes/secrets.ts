@@ -12,6 +12,7 @@ import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { AppEnv } from "../types.js";
 import { authMiddleware } from "../middleware/auth-middleware.js";
+import { requireAdmin } from "../middleware/rbac-middleware.js";
 import { KMSClient, KMSClientError } from "../services/kms-client.js";
 import { runSecretOrchestrator } from "../orchestrator.js";
 
@@ -22,15 +23,6 @@ function getKmsClient(): KMSClient | null {
   const authToken = (process.env.KMS_AUTH_TOKEN ?? "").trim();
   if (!baseUrl || !authToken) return null;
   return new KMSClient({ baseUrl, authToken });
-}
-
-/** Block anything that isn't a global admin. The auth-middleware has already
- * populated `userRole`. */
-function requireAdmin(c: Context<AppEnv>): Response | null {
-  if (c.get("userRole") !== "admin") {
-    return c.json({ error: "Admin role required for KMS operations" }, 403);
-  }
-  return null;
 }
 
 /** Map a KMSClientError to a JSON response. We pass through the upstream

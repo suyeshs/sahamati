@@ -14,6 +14,7 @@ idempotent and the source markdown stays put in its canonical location.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -193,11 +194,69 @@ def _landing_for_project(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _load_portal_data(db_path: Path) -> dict[str, list[dict[str, Any]]]:
+    """Load projects/phases/documents for the portal.
+
+    Prefers the JSON snapshot written by ``agent-server/scripts/export-portal-data.ts``
+    — the app DB is libsql page-encrypted, which Python's sqlite3 cannot open.
+    Falls back to reading the DB directly when it's still plaintext.
+    """
+    export_path = db_path.with_name("portal-export.json")
+    if export_path.exists():
+        data = json.loads(export_path.read_text(encoding="utf-8"))
+        return {
+            "projects": data["projects"],
+            "phases": data["phases"],
+            "documents": data["documents"],
+        }
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        projects = [
+            dict(r)
+            for r in conn.execute(
+                """
+                SELECT id, name, slug, description, status, github_repo_url
+                FROM projects
+                WHERE COALESCE(status, '') != 'archived'
+                ORDER BY name COLLATE NOCASE
+                """
+            ).fetchall()
+        ]
+        phases = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, project_id, name, display_order, status"
+                " FROM project_phases ORDER BY display_order"
+            ).fetchall()
+        ]
+        documents = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, project_id, title, filename, category, file_path, phase_id, created_at"
+                " FROM documents ORDER BY created_at"
+            ).fetchall()
+        ]
+    except sqlite3.DatabaseError as exc:
+        # Failing loudly matters: a silent skip here would rebuild the portal
+        # without any project pages and the deploy step would then delete them
+        # from production.
+        raise SystemExit(
+            f"error: cannot read {db_path} ({exc}).\n"
+            "The app database is encrypted at rest. Generate the snapshot first:\n"
+            "  cd agent-server && bun scripts/export-portal-data.ts"
+        ) from exc
+    finally:
+        conn.close()
+    return {"projects": projects, "phases": phases, "documents": documents}
+
+
 def process_sqlite_projects(
     category_id: str,
     category: dict[str, Any],
 ) -> tuple[list[Any], list[dict[str, Any]]]:
-    """Walk the Sahamati app's SQLite DB and emit per-project pages.
+    """Walk the Sahamati app's project data and emit per-project pages.
 
     Returns (nav_entries, project_cards) — nav_entries is inserted under the
     category tab, project_cards powers the home-page project grid.
@@ -205,60 +264,36 @@ def process_sqlite_projects(
     db_path = resolve(category["database"])
     data_dir = resolve(category["data_dir"])
 
-    if not db_path.exists():
+    if not db_path.exists() and not db_path.with_name("portal-export.json").exists():
         print(f"  skip: database not found at {db_path}")
         return [], []
     if not data_dir.exists():
         print(f"  skip: project data dir not found at {data_dir}")
         return [], []
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    data = _load_portal_data(db_path)
 
-    try:
-        projects = conn.execute(
-            """
-            SELECT id, name, slug, description, status, github_repo_url
-            FROM projects
-            WHERE COALESCE(status, '') != 'archived'
-            ORDER BY name COLLATE NOCASE
-            """
-        ).fetchall()
-    except sqlite3.OperationalError as exc:
-        print(f"  skip: projects table unreadable — {exc}")
-        conn.close()
-        return [], []
+    phases_by_project: dict[str, list[dict[str, Any]]] = {}
+    for phase in data["phases"]:
+        phases_by_project.setdefault(phase["project_id"], []).append(phase)
+    docs_by_project: dict[str, list[dict[str, Any]]] = {}
+    for doc in data["documents"]:
+        docs_by_project.setdefault(doc["project_id"], []).append(doc)
 
     nav: list[Any] = []
     cards: list[dict[str, Any]] = []
 
-    for project in projects:
+    for project in data["projects"]:
         slug = project["slug"]
-        phases = conn.execute(
-            """
-            SELECT id, project_id, name, display_order, status
-            FROM project_phases
-            WHERE project_id = ?
-            ORDER BY display_order
-            """,
-            (project["id"],),
-        ).fetchall()
-        docs = conn.execute(
-            """
-            SELECT id, title, filename, category, file_path, phase_id, created_at
-            FROM documents
-            WHERE project_id = ?
-            ORDER BY created_at
-            """,
-            (project["id"],),
-        ).fetchall()
+        phases = phases_by_project.get(project["id"], [])
+        docs = docs_by_project.get(project["id"], [])
 
         valid_phase_ids = {p["id"] for p in phases}
         proj_dir = DOCS_OUT / category_id / slug
         proj_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy each document file into the project folder, tracking which phase it belongs to.
-        docs_by_phase: dict[str, list[tuple[sqlite3.Row, str]]] = {}
+        docs_by_phase: dict[str, list[tuple[dict[str, Any], str]]] = {}
         ingested_count = 0
         for doc in docs:
             src = data_dir / slug / doc["file_path"]
@@ -335,7 +370,6 @@ def process_sqlite_projects(
             f"phase(s) -> {category_id}/{slug}/)"
         )
 
-    conn.close()
     return nav, cards
 
 

@@ -6,7 +6,9 @@ DEPLOY_TARGET := $(abspath $(PORTAL)/../../cloud/public/docs)
 install:
 	python3 -m pip install -r requirements.txt
 
+# The app DB is libsql-encrypted; export a JSON snapshot for the collector first.
 collect:
+	cd "$(PORTAL)/../../agent-server" && bun scripts/export-portal-data.ts
 	python3 scripts/collect_docs.py
 
 serve: collect

@@ -124,6 +124,10 @@ export function getProjectBySlug(slug: string): ProjectWithDetails | undefined {
     .get(slug) as ProjectWithDetails | undefined;
 }
 
+export function getProjectById(id: string): Project | undefined {
+  return getDb().prepare("SELECT * FROM projects WHERE id = ?").get(id) as Project | undefined;
+}
+
 export function listProjectsForUser(userId: string): ProjectWithDetails[] {
   const db = getDb();
   // A creator should always see their own project even if their project_members

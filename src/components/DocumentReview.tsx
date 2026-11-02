@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { listGeneratedDocs, getGeneratedDoc, type GeneratedDoc } from "../lib/agent-api";
+import { markdownComponents } from "./MarkdownViewer";
 
 export default function DocumentReview() {
   const [docs, setDocs] = useState<GeneratedDoc[]>([]);
@@ -86,7 +87,7 @@ export default function DocumentReview() {
             <p className="md-viewer-loading">Loading document...</p>
           ) : (
             <div className="md-viewer">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{content}</ReactMarkdown>
             </div>
           )}
         </div>

@@ -53,6 +53,14 @@ export function checkPermission(
   return allowed ? allowed.has(action) : false;
 }
 
+/** Block anything that isn't a global admin. auth-middleware has already set `userRole`. */
+export function requireAdmin(c: Context<AppEnv>): Response | null {
+  if (c.get("userRole") !== "admin") {
+    return c.json({ error: "Admin role required" }, 403);
+  }
+  return null;
+}
+
 // Middleware factory that checks project-level permissions
 export function requireProjectPermission(action: Action) {
   return async (c: Context<AppEnv>, next: Next) => {

@@ -16,6 +16,8 @@ import VideoGallery from "./pages/VideoGallery";
 import VideoCreate from "./pages/VideoCreate";
 import Secrets from "./pages/Secrets";
 import LocalDocs from "./pages/LocalDocs";
+import Defender from "./pages/Defender";
+import SecurityPosture from "./pages/SecurityPosture";
 
 function TwoFactorChallenge() {
   const { verify2faLogin, logout, user } = useAuth();
@@ -144,6 +146,7 @@ function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="agents" element={<AgentStudio />} />
         <Route path="local-docs" element={<LocalDocs />} />
+        <Route path="security" element={<SecurityPosture />} />
         <Route path="videos" element={<VideoGallery />} />
         <Route path="videos/create" element={<VideoCreate />} />
         <Route path="secrets" element={<Secrets />} />
@@ -154,6 +157,7 @@ function App() {
         <Route index element={<ProjectDashboard />} />
         <Route path="docs" element={<ProjectDocuments />} />
         <Route path="workflows" element={<ProjectWorkflows />} />
+        <Route path="defender" element={<Defender />} />
         <Route path="members" element={<ProjectMembers />} />
         <Route path="settings" element={<ProjectSettings />} />
       </Route>

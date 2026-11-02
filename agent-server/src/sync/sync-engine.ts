@@ -102,6 +102,21 @@ export function getDeviceId(): string {
 }
 
 /**
+ * libsql's synchronous driver attaches a non-column `_metadata` ({ duration })
+ * property to every row returned by .get()/.all(). Repositories pass those rows
+ * straight to recordChange(), so it leaks into _sync_log.data. The cloud worker
+ * builds its INSERT column list from Object.keys(data), so a stray _metadata
+ * key becomes a phantom column and D1 rejects the whole batch with a 500 —
+ * wedging sync. Strip it before the row is ever serialized for transport.
+ */
+function stripRowMeta(data: Record<string, unknown>): Record<string, unknown> {
+  if (!("_metadata" in data)) return data;
+  const { _metadata, ...rest } = data;
+  void _metadata;
+  return rest;
+}
+
+/**
  * Record a change for sync (called by repositories after mutations)
  */
 export function recordChange(
@@ -115,7 +130,7 @@ export function recordChange(
   db.prepare(
     `INSERT INTO _sync_log (table_name, record_id, operation, data, device_id)
      VALUES (?, ?, ?, ?, ?)`
-  ).run(tableName, recordId, operation, JSON.stringify(data), deviceId);
+  ).run(tableName, recordId, operation, JSON.stringify(stripRowMeta(data)), deviceId);
 
   // Push promptly. Concurrent mutations coalesce into a single push because
   // syncInFlight skips while one is running — pushToCloud re-reads the queue
@@ -174,7 +189,7 @@ export function seedSyncLog(): number {
         db.prepare(
           `INSERT INTO _sync_log (table_name, record_id, operation, data, device_id)
            VALUES (?, ?, 'INSERT', ?, ?)`
-        ).run(table, pk, JSON.stringify(row), deviceId);
+        ).run(table, pk, JSON.stringify(stripRowMeta(row)), deviceId);
         count++;
       }
     }
@@ -237,7 +252,17 @@ export async function pushToCloud(cloudflareWorkerUrl: string, authToken: string
   const deviceId = getDeviceId();
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
-    const batch = pending.slice(i, i + BATCH_SIZE);
+    // Sanitize on the wire too: rows queued before the stripRowMeta() fix still
+    // carry libsql's _metadata key in their stored data, so heal them here
+    // rather than requiring a DB migration to unwedge an existing queue.
+    const batch = pending.slice(i, i + BATCH_SIZE).map((change) => {
+      if (!change.data.includes('"_metadata"')) return change;
+      try {
+        return { ...change, data: JSON.stringify(stripRowMeta(JSON.parse(change.data))) };
+      } catch {
+        return change;
+      }
+    });
 
     const response = await fetch(`${cloudflareWorkerUrl}/api/sync/push`, {
       method: "POST",

@@ -11,6 +11,10 @@ export interface CliRunnerOptions {
   allowedTools?: string[];
   cwd?: string;
   maxTurns?: number;
+  /** External MCP servers (server name → --mcp-config entry). In-process SDK
+   * MCP servers can't cross into the CLI subprocess, so agents that need MCP
+   * tools under the cli runner provide a launchable equivalent. */
+  mcpServers?: Record<string, unknown>;
   onMessage?: (msg: unknown) => void;
 }
 
@@ -146,6 +150,12 @@ function buildCliArgs(options: CliRunnerOptions): string[] {
 
   if (options.maxTurns) {
     args.push("--max-turns", String(options.maxTurns));
+  }
+
+  if (options.mcpServers && Object.keys(options.mcpServers).length > 0) {
+    args.push("--mcp-config", JSON.stringify({ mcpServers: options.mcpServers }));
+    // Only the servers we pass — don't pick up user/project MCP config.
+    args.push("--strict-mcp-config");
   }
 
   return args;

@@ -2,6 +2,15 @@ import { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync } from "
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Stdio MCP mode (`agent-server gmail-mcp`), used by the Claude Code CLI
+// runner. Must dispatch before anything logs to stdout — stdout is the MCP
+// protocol channel. Credentials arrive via env from the --mcp-config entry.
+if (process.argv[2] === "gmail-mcp") {
+  const { runGmailMcpStdio } = await import("./tools/gmail-mcp-stdio.js");
+  await runGmailMcpStdio();
+  process.exit(0);
+}
+
 // Allow Claude Agent SDK to spawn claude subprocess even when started from a Claude Code session
 delete process.env.CLAUDECODE;
 
@@ -189,6 +198,10 @@ if (backgroundSync) {
 // Seed built-in agents into OpenClaw workspace
 const { seedBuiltInAgents } = await import("./openclaw/runner.js");
 seedBuiltInAgents();
+
+// Dependency-CVE scheduler. Opt-in; the desktop sidecar never sets the flag.
+const { startDefenderScheduler } = await import("./services/defender/scheduler.js");
+startDefenderScheduler();
 
 const port = Number(process.env.PORT ?? 3001);
 

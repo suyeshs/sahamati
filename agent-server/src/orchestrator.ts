@@ -5,6 +5,7 @@ import * as openclawRunner from "./openclaw/runner.js";
 import { queryViaCli } from "./claudecode/runner.js";
 import { getRunnerMode } from "./runner-config.js";
 import { secretsMcpServer } from "./tools/secrets.js";
+import { buildToolGateHooks } from "./tools/permission-gate.js";
 
 // Lazy-load the SDK only when needed (avoids credit check on import in CLI mode)
 let _query: typeof import("@anthropic-ai/claude-agent-sdk").query | null = null;
@@ -21,7 +22,7 @@ type SdkMcpServers = NonNullable<
 >["mcpServers"];
 
 // Legacy imports kept as fallback
-import { discoveryAgent, requirementsAgent, knowledgeAgent, processDocsAgent, evernoteAgent, securityAgent, owaspAgent, vaptAgent, videoAgent } from "./agents/index.js";
+import { discoveryAgent, requirementsAgent, knowledgeAgent, processDocsAgent, evernoteAgent, mailEAgent, rankMathAgent, securityAgent, owaspAgent, vaptAgent, videoAgent, defenderTriageAgent, defenderPatchAgent } from "./agents/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -44,8 +45,13 @@ type AgentDef = {
 };
 // runDirectAgent honors mcpServers at the top-level query options; sub-agents
 // passed via the SDK's `agents:` option use a different (ref-style) shape, so
-// we keep that field off the shared AgentDef.
-type DirectAgentDef = AgentDef & { mcpServers?: SdkMcpServers };
+// we keep that field off the shared AgentDef. cliMcpServers is the launchable
+// --mcp-config equivalent for the Claude Code CLI runner (in-process SDK MCP
+// servers can't cross the subprocess boundary).
+type DirectAgentDef = AgentDef & {
+  mcpServers?: SdkMcpServers;
+  cliMcpServers?: () => Record<string, unknown> | null;
+};
 
 // Doc agent types all route to the single "documentation" OpenClaw agent
 const DOC_AGENT_TYPES = ["discovery", "requirements", "knowledge", "process-docs"];
@@ -65,11 +71,68 @@ const legacyAgents = {
   "knowledge-agent": knowledgeAgent,
   "process-docs-agent": processDocsAgent,
   "evernote-agent": evernoteAgent,
+  "mail-e-agent": mailEAgent,
+  "rankmath-agent": rankMathAgent,
   "security-agent": securityAgent,
   "owasp-agent": owaspAgent,
   "vapt-agent": vaptAgent,
   "video-agent": videoAgent,
 };
+
+export interface BuiltInAgentSummary {
+  name: string;
+  displayName: string;
+  description: string;
+  model: string;
+  maxTurns: number;
+  tools: string[];
+  /** Where the agent is launched from in the UI. */
+  surface: "project-workflows" | "defender" | "agent-studio" | "orchestrator";
+  prompt: string;
+}
+
+const DISPLAY_NAMES: Record<string, string> = {
+  "discovery-agent": "Discovery (BRD)",
+  "requirements-agent": "Requirements (FRD / user stories)",
+  "knowledge-agent": "Knowledge base",
+  "process-docs-agent": "Process documentation",
+  "evernote-agent": "Evernote",
+  "mail-e-agent": "mail-e (Gmail triage)",
+  "rankmath-agent": "Rank Math SEO",
+  "security-agent": "Security assessment",
+  "owasp-agent": "OWASP assessment",
+  "vapt-agent": "VAPT report",
+  "video-agent": "Video",
+  "defender-triage-agent": "Defender: triage",
+  "defender-patch-agent": "Defender: patch",
+};
+
+/**
+ * Code-defined agents (version-controlled TS + prompt), for display in Agent
+ * Studio. These are not in the DB registry on purpose: their tools include
+ * typed MCP servers and their behaviour is reviewed through git, not edited live.
+ */
+export function listBuiltInAgents(): BuiltInAgentSummary[] {
+  const entries: Array<[string, AgentDef, BuiltInAgentSummary["surface"]]> = [
+    ...Object.entries(legacyAgents).map(([name, agent]): [string, AgentDef, BuiltInAgentSummary["surface"]] => [
+      name,
+      agent as AgentDef,
+      name === "rankmath-agent" || name === "mail-e-agent" || name === "evernote-agent" ? "agent-studio" : "project-workflows",
+    ]),
+    [defenderTriageAgent.name, defenderTriageAgent, "defender"],
+    [defenderPatchAgent.name, defenderPatchAgent, "defender"],
+  ];
+  return entries.map(([name, agent, surface]) => ({
+    name,
+    displayName: DISPLAY_NAMES[name] ?? name,
+    description: agent.description,
+    model: agent.model,
+    maxTurns: agent.maxTurns,
+    tools: [...agent.tools],
+    surface,
+    prompt: agent.prompt,
+  }));
+}
 
 export interface OrchestratorOptions {
   sessionId?: string;
@@ -95,7 +158,7 @@ function buildOrchestratorAgents(): {
   const mcpServers: NonNullable<SdkMcpServers> = {};
 
   const addLegacy = (key: string, legacy: AgentDef | DirectAgentDef) => {
-    const { mcpServers: legacyMcp, ...rest } = legacy as DirectAgentDef;
+    const { mcpServers: legacyMcp, cliMcpServers: _cliMcp, ...rest } = legacy as DirectAgentDef;
     agents[key] = rest;
     if (legacyMcp) Object.assign(mcpServers, legacyMcp);
   };
@@ -136,6 +199,12 @@ function buildOrchestratorAgents(): {
   } else {
     addLegacy("evernote-agent", evernoteAgent);
   }
+
+  // Rank Math WordPress SEO agent (HTTP MCP; config resolves lazily from env)
+  addLegacy("rankmath-agent", rankMathAgent);
+
+  // mail-e Gmail triage agent (SDK MCP; credentials resolve lazily from env)
+  addLegacy("mail-e-agent", mailEAgent);
 
   return { agents, mcpServers };
 }
@@ -196,15 +265,30 @@ export async function runOrchestrator(
   }
 
   const query = await getSdkQuery();
+  const orchestratorTools = [
+    "Read", "Write", "Glob", "Grep", "Bash", "Task", "WebSearch",
+    ...subAgentMcpToolNames,
+  ];
+  // The gate runs at the top-level query, so its PreToolUse hook also fires for
+  // sub-agent tool calls (identified by agent_id). Allow-set is the union of the
+  // orchestrator's tools and every sub-agent's tools, so a legitimate delegated
+  // call is never denied by the tool-level check — the argument-level rules
+  // (protected paths, destructive commands) still apply to all of them.
+  const gateAllowedTools = [
+    ...new Set([...orchestratorTools, ...Object.values(agents).flatMap((a) => a.tools)]),
+  ];
+  const gateHooks = buildToolGateHooks({
+    agentName: "orchestrator",
+    allowedTools: gateAllowedTools,
+    projectRoot,
+  });
   for await (const message of query({
     prompt: userPrompt,
     options: {
       systemPrompt: orchestratorPrompt,
-      allowedTools: [
-        "Read", "Write", "Glob", "Grep", "Bash", "Task", "WebSearch",
-        ...subAgentMcpToolNames,
-      ],
+      allowedTools: orchestratorTools,
       agents,
+      hooks: gateHooks,
       ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
       cwd: projectRoot,
       ...(options?.resume ? { resume: options.resume } : {}),
@@ -326,22 +410,32 @@ export async function runDirectAgent(
   const messages: unknown[] = [];
 
   if (getRunnerMode() === "cli") {
+    const cliMcp = agent.cliMcpServers?.();
     return queryViaCli(userPrompt, {
       systemPrompt: agent.prompt,
       allowedTools: [...agent.tools],
       cwd: projectRoot,
       maxTurns: agent.maxTurns,
+      ...(cliMcp ? { mcpServers: cliMcp } : {}),
       onMessage: options?.onMessage,
     });
   }
 
   const query = await getSdkQuery();
+  // Deterministic, unbypassable tool gate (Hard Rule #1). Runs as a PreToolUse
+  // hook so it fires before every call regardless of allowedTools/permissionMode.
+  const gateHooks = buildToolGateHooks({
+    agentName,
+    allowedTools: agent.tools,
+    projectRoot,
+  });
   for await (const message of query({
     prompt: userPrompt,
     options: {
       systemPrompt: agent.prompt,
       allowedTools: [...agent.tools],
       cwd: projectRoot,
+      hooks: gateHooks,
       ...(options?.resume ? { resume: options.resume } : {}),
       ...(agent.mcpServers ? { mcpServers: agent.mcpServers } : {}),
       permissionMode: "acceptEdits",

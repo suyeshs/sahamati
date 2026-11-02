@@ -468,6 +468,59 @@ body.tauri .app-layout {
   padding: 2rem;
 }
 
+/* Mermaid diagrams rendered from ```mermaid fences */
+.mermaid-diagram {
+  margin: 1em 0;
+  padding: 1rem;
+  background: var(--bg-dark);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  text-align: center;
+}
+
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-loading {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.mermaid-error {
+  margin: 1em 0;
+  padding: 1rem;
+  border-left: 4px solid var(--danger);
+  background: var(--error-bg);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.mermaid-error p {
+  color: var(--danger);
+  margin: 0 0 0.5em;
+  font-size: 0.9em;
+}
+
+/* Documents sidebar header with upload action */
+.doc-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.doc-sidebar-header h2 {
+  margin: 0;
+}
+
+.doc-upload-error {
+  color: var(--danger);
+  font-size: 0.85em;
+  margin: 0 0 0.75rem;
+}
+
 /* ============================================
    Template selector
    ============================================ */
@@ -3365,3 +3418,256 @@ body.tauri .titlebar-traffic-spacer {
   color: var(--text-light);
   font-weight: 600;
 }
+
+/* ===== Defender (dependency-CVE) ===== */
+.defender {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.defender-subtitle {
+  color: var(--text-muted);
+  margin: 0.25rem 0 0;
+  max-width: 70ch;
+}
+.defender-error {
+  background: rgba(var(--danger-rgb), 0.08);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
+  color: var(--danger);
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.defender-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.defender-section-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.defender-scan-meta,
+.defender-muted {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+.defender-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.defender-add {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr auto;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.defender-add input,
+.defender-actions select,
+.defender-findings-table select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.defender-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.9rem;
+}
+.defender-table th,
+.defender-table td {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.defender-table th {
+  background: var(--bg-dark);
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.defender-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.defender-targets .defender-table tbody tr {
+  cursor: pointer;
+}
+.defender-targets .defender-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+.defender-targets .defender-table tbody tr.selected {
+  background: var(--sidebar-active-bg);
+}
+.defender-row-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 0.35rem;
+}
+.defender-table .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+.defender-note {
+  color: var(--warning);
+  margin: 0 0 0.75rem;
+}
+.badge-ok {
+  background: rgba(22, 163, 74, 0.12);
+  color: var(--success);
+}
+.badge-running {
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--status-running);
+}
+.severity-critical { background: rgba(var(--danger-rgb), 0.18); color: var(--danger-hover); }
+.severity-high     { background: rgba(var(--danger-rgb), 0.1);  color: var(--danger); }
+.severity-medium   { background: rgba(217, 119, 6, 0.14);       color: var(--warning); }
+.severity-low      { background: rgba(var(--accent-rgb), 0.1);  color: var(--trust-blue); }
+.severity-info     { background: var(--bg-dark);                color: var(--text-muted); }
+.defender-history {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.defender-history ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+.defender-log h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+.defender-log-body {
+  background: var(--code-bg);
+  color: var(--code-text);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  max-height: 24rem;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.defender-log-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.defender-log-phase .defender-log-text { color: #a5b4fc; font-weight: 600; }
+.defender-log-done  .defender-log-text { color: #86efac; font-weight: 600; }
+.defender-log-error .defender-log-text { color: #fca5a5; }
+.defender-log-agent .defender-log-text { color: var(--code-text); white-space: pre-wrap; }
+.defender-log-tool  .defender-log-text { color: #fcd34d; }
+.defender-log-detail {
+  color: #9ca3af;
+  word-break: break-all;
+}
+@media (max-width: 900px) {
+  .defender-add {
+    grid-template-columns: 1fr;
+  }
+}
+.workflow-card-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+/* ===== Security Posture (cross-project, CISO view) ===== */
+.posture { display: flex; flex-direction: column; gap: 1.25rem; }
+.posture-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.posture-subtitle { color: var(--text-muted); margin: 0.25rem 0 0; max-width: 78ch; }
+.posture-controls { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.posture-segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.posture-segmented button { background: var(--bg); color: var(--text-muted); border: none; padding: 0.45rem 0.8rem; font: inherit; cursor: pointer; }
+.posture-segmented button.active { background: var(--sidebar-active-bg); color: var(--trust-blue); font-weight: 600; }
+.posture-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
+.posture-tile { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 0.75rem 0.9rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.posture-tile-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.posture-tile-value { font-size: 1.9rem; font-weight: 650; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--text); }
+.posture-tile-hint { font-size: 0.8rem; color: var(--text-muted); }
+.posture-tile.tone-critical { border-left-color: #d03b3b; }
+.posture-tile.tone-serious  { border-left-color: #ec835a; }
+.posture-tile.tone-warning  { border-left-color: #fab219; }
+.posture-tile.tone-good     { border-left-color: #0ca30c; }
+.posture-table td, .posture-table th { vertical-align: middle; font-variant-numeric: tabular-nums; }
+.posture-row { cursor: pointer; }
+.posture-row:hover { background: var(--bg-hover); }
+.posture-detail-row td { background: var(--bg-dark); padding: 0.75rem 1rem 0.9rem; }
+.posture-target-table { margin-bottom: 0.5rem; }
+.posture-detail-link { margin: 0.25rem 0 0; font-size: 0.85rem; }
+.posture-bad { color: var(--danger); font-weight: 600; }
+.posture-stale { color: var(--warning); }
+.posture-muted { color: var(--text-muted); font-size: 0.85em; }
+.posture-footnote { color: var(--text-muted); font-size: 0.8rem; max-width: 100ch; margin: 0.75rem 0 0; }
+/* Status chips: colour is reserved for state and always paired with a text label. */
+.grade-badge { font-weight: 600; }
+.grade-badge.grade-critical { background: rgba(208, 59, 59, 0.14); color: #a32d2d; }
+.grade-badge.grade-serious  { background: rgba(236, 131, 90, 0.18); color: #a4451f; }
+.grade-badge.grade-warning  { background: rgba(250, 178, 25, 0.2);  color: #7a5200; }
+.grade-badge.grade-good     { background: rgba(12, 163, 12, 0.14);  color: #0a6b0a; }
+.grade-badge.grade-unknown  { background: var(--bg-dark);           color: var(--text-muted); }
+/* Severity bar: thin stacked track with 2px gaps; every segment also gets a text label. */
+.posture-sevbar { display: flex; flex-direction: column; gap: 0.25rem; min-width: 150px; }
+.posture-sevbar-track { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; }
+.posture-sevbar-seg { display: block; min-width: 4px; }
+.posture-sevbar-labels { display: flex; gap: 0.6rem; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-muted); }
+.posture-sevbar-label { display: inline-flex; align-items: center; gap: 0.3rem; }
+.posture-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.sev-critical { background: #d03b3b; }
+.sev-high     { background: #ec835a; }
+.sev-medium   { background: #fab219; }
+.sev-low      { background: #9ca3af; }
+.sev-info     { background: #d1d5db; }
+.posture-spark { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--trust-blue); }
+.posture-delta { font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.posture-delta.up { color: var(--danger); }
+.posture-delta.down { color: #006300; }
+@media (max-width: 1100px) {
+  .posture-table th:nth-child(5), .posture-table td:nth-child(5),
+  .posture-table th:nth-child(7), .posture-table td:nth-child(7) { display: none; }
+}
+
+/* Agent Studio: read-only built-in agent view */
+.builtin-agent-facts { display: grid; grid-template-columns: 8rem 1fr; gap: 0.35rem 1rem; margin: 0.75rem 0; font-size: 0.9rem; }
+.builtin-agent-facts dt { color: var(--text-muted); }
+.builtin-agent-facts dd { margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.builtin-agent-tool { background: var(--bg-dark); border-radius: 4px; padding: 0.1rem 0.4rem; font-size: 0.8rem; }
+.builtin-agent-prompt { background: var(--code-bg); color: var(--code-text); border-radius: 8px; padding: 0.9rem 1rem; max-height: 28rem; overflow: auto; white-space: pre-wrap; font-size: 0.8rem; line-height: 1.5; }
+
+/* Security Posture: CVE feed notifications */
+.posture-alerts { background: var(--bg); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; }
+.posture-alerts.has-high { border-left-color: #ec835a; }
+.posture-alerts.has-critical { border-left-color: #d03b3b; }
+.posture-alerts-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.posture-alerts-head h2 { margin: 0; font-size: 1.05rem; display: flex; align-items: center; gap: 0.6rem; }
+.posture-alerts-count { font-size: 0.78rem; font-weight: 600; padding: 0.15rem 0.55rem; border-radius: 999px; background: rgba(208, 59, 59, 0.12); color: #a32d2d; }
+.posture-alerts-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: var(--text-muted); flex-wrap: wrap; }
+.posture-alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.posture-alert { display: grid; grid-template-columns: auto 1fr auto; gap: 0.75rem; align-items: start; padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-radius: 6px; background: var(--canvas); }
+.posture-alert.sev-row-critical { border-color: rgba(208, 59, 59, 0.4); }
+.posture-alert-body { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.9rem; min-width: 0; }
+.posture-alert-summary { color: var(--text); font-size: 0.85rem; }
+.posture-alert-actions { display: flex; gap: 0.35rem; align-items: center; }
+.posture-alert code { font-size: 0.82rem; }

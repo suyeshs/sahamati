@@ -200,10 +200,11 @@ export function getLatestCompletedScan(targetId: string, beforeScanId?: string):
         .prepare(
           `SELECT * FROM scans
            WHERE target_id = ? AND status = 'completed' AND id != ?
-                 AND started_at < (SELECT started_at FROM scans WHERE id = ?)
-           ORDER BY started_at DESC LIMIT 1`
+                 AND started_at <= (SELECT started_at FROM scans WHERE id = ?)
+                 AND rowid < (SELECT rowid FROM scans WHERE id = ?)
+           ORDER BY started_at DESC, rowid DESC LIMIT 1`
         )
-        .get(targetId, beforeScanId, beforeScanId) as Scan) ?? null
+        .get(targetId, beforeScanId, beforeScanId, beforeScanId) as Scan) ?? null
     );
   }
   return (
@@ -211,7 +212,7 @@ export function getLatestCompletedScan(targetId: string, beforeScanId?: string):
       .prepare(
         `SELECT * FROM scans
          WHERE target_id = ? AND status = 'completed'
-         ORDER BY started_at DESC LIMIT 1`
+         ORDER BY started_at DESC, rowid DESC LIMIT 1`
       )
       .get(targetId) as Scan) ?? null
   );
@@ -224,8 +225,9 @@ export function appendFindings(scanId: string, findings: NewFinding[]): Finding[
   const db = getDb();
   const stmt = db.prepare(
     `INSERT INTO scan_findings
-     (id, scan_id, fingerprint, severity, category, cwe, title, description, location, evidence, remediation, first_seen_scan_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     (id, scan_id, fingerprint, severity, category, cwe, title, description, location, evidence, remediation, first_seen_scan_id,
+      ecosystem, package, installed_version, fixed_version, advisory_ids, manifest_path, is_direct)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const inserted: Finding[] = [];
   db.transaction(() => {
@@ -258,7 +260,14 @@ export function appendFindings(scanId: string, findings: NewFinding[]): Finding[
         f.location,
         f.evidence ?? null,
         f.remediation ?? null,
-        firstSeenId
+        firstSeenId,
+        f.ecosystem ?? null,
+        f.package ?? null,
+        f.installedVersion ?? null,
+        f.fixedVersion ?? null,
+        f.advisoryIds ? JSON.stringify(f.advisoryIds) : null,
+        f.manifestPath ?? null,
+        f.isDirect === undefined ? null : f.isDirect ? 1 : 0
       );
       const row = db
         .prepare("SELECT * FROM scan_findings WHERE id = ?")
@@ -279,7 +288,7 @@ export function listFindings(scanId: string): Finding[] {
 export function updateFindingStatus(id: string, status: FindingStatus): Finding | null {
   const db = getDb();
   const result = db
-    .prepare("UPDATE scan_findings SET status = ? WHERE id = ?")
+    .prepare("UPDATE scan_findings SET status = ?, status_changed_at = datetime('now') WHERE id = ?")
     .run(status, id);
   if (result.changes === 0) return null;
   const row = db

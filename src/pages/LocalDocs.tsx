@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useLocalProject } from "../context/LocalProjectContext";
+import { markdownComponents } from "../components/MarkdownViewer";
 import { useAuth } from "../context/AuthContext";
 import { listProjects, createDocument, triggerSync, type ProjectWithDetails } from "../lib/project-api";
 import {
@@ -340,7 +341,7 @@ export default function LocalDocs() {
                 )}
               </h3>
               <div className="md-viewer" style={{ maxHeight: 400, overflow: "auto", padding: "1rem", boxShadow: "var(--neu-inset)", borderRadius: "var(--radius)" }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{output}</ReactMarkdown>
               </div>
             </div>
           )}

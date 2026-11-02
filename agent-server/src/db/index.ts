@@ -91,7 +91,7 @@ function runMigrations() {
       .map((row: any) => row.filename)
   );
 
-  const migrationFiles = ["001_initial.sql", "002_add_visibility.sql", "003_add_totp.sql", "004_add_video_tables.sql", "005_add_document_content.sql", "006_add_security_scans.sql", "007_add_deployments.sql"];
+  const migrationFiles = ["001_initial.sql", "002_add_visibility.sql", "003_add_totp.sql", "004_add_video_tables.sql", "005_add_document_content.sql", "006_add_security_scans.sql", "007_add_deployments.sql", "008_add_agent_registry.sql", "009_add_defender.sql", "010_add_finding_status_timestamp.sql", "011_add_cve_watch.sql"];
 
   for (const filename of migrationFiles) {
     if (applied.has(filename)) continue;

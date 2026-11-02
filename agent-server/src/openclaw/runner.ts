@@ -1,9 +1,36 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync, rmSync } from "fs";
+/**
+ * OpenClaw agent runner — now an ADAPTER over the validated, versioned agent
+ * registry (see db/repositories/agent-repo.ts). Agent definitions used to live
+ * as markdown "soul" folders on disk; they now live as immutable, auditable
+ * revisions in the encrypted DB. This module keeps the historical OpenClaw API
+ * shape (soul/tools/identity/skills strings) so server.ts routes, the frontend,
+ * and the orchestrator keep working — it just translates that shape to and from
+ * the flat registry definition.
+ *
+ * Consequences of the flattening:
+ *   - `identity` folds into the system prompt; it is no longer a separate field.
+ *   - `heartbeat` is dropped (was never used at runtime).
+ *   - per-skill files fold into the system prompt; skills are inline, so the
+ *     skill-management API degrades to appending into the prompt.
+ * The code-defined assessors (security/owasp/vapt) are NOT here — they stay in
+ * version-controlled TS and run via the orchestrator's legacy path.
+ */
+
+import { readFileSync, existsSync } from "fs";
 import { join, resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { queryViaCli } from "../claudecode/runner.js";
 import { getRunnerMode } from "../runner-config.js";
+import { buildToolGateHooks } from "../tools/permission-gate.js";
 import { EMBEDDED_PROMPTS } from "../agents/embedded-prompts.js";
+import * as registry from "../db/repositories/agent-repo.js";
+import type { AgentDefinition } from "../db/repositories/agent-repo.js";
+import type {
+  OpenClawAgentSummary,
+  OpenClawAgentConfig,
+  NewOpenClawAgentRequest,
+  UpdateOpenClawAgentRequest,
+} from "../types.js";
 
 // Lazy-load the SDK only when needed (avoids credit check on import in CLI mode)
 let _query: typeof import("@anthropic-ai/claude-agent-sdk").query | null = null;
@@ -14,220 +41,141 @@ async function getSdkQuery() {
   }
   return _query;
 }
-import type {
-  OpenClawAgentSummary,
-  OpenClawAgentConfig,
-  NewOpenClawAgentRequest,
-  UpdateOpenClawAgentRequest,
-} from "../types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = process.env.__SAHAMATI_ROOT || resolve(__dirname, "../../..");
 
-const WORKSPACE_ROOT = join(PROJECT_ROOT, "openclaw-agents");
+const DEFAULT_TOOLS = ["Read", "Write", "Glob", "Grep", "Bash", "WebSearch", "WebFetch"] as const;
 
-function ensureWorkspace(): void {
-  if (!existsSync(WORKSPACE_ROOT)) {
-    mkdirSync(WORKSPACE_ROOT, { recursive: true });
-  }
-}
+// Map an editable TOOLS.md-style tool list (markdown bullets or bare names) to
+// registry tool names. Kept from the soul era — this is the last place prose is
+// parsed into tools; the registry stores the validated result.
+function parseTools(toolsContent: string): AgentDefinition["tools"] {
+  const toolMap: Record<string, string> = {
+    "file-read": "Read", "file-write": "Write", "file-search": "Glob",
+    "content-search": "Grep", "shell": "Bash", "bash": "Bash",
+    "web-search": "WebSearch", "web-fetch": "WebFetch",
+    "read": "Read", "write": "Write", "edit": "Edit", "multiedit": "MultiEdit",
+    "glob": "Glob", "grep": "Grep", "websearch": "WebSearch",
+    "webfetch": "WebFetch", "task": "Task",
+  };
 
-function parseFrontmatter(content: string): Record<string, string> {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return {};
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split("\n")) {
-    const idx = line.indexOf(":");
-    if (idx > 0) {
-      meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
+  const tools: string[] = [];
+  for (const line of toolsContent.split("\n")) {
+    const match = line.match(/^[\s]*[-*]\s*(?:\*\*)?(\w[\w-]*)(?:\*\*)?/i);
+    if (match) {
+      const mapped = toolMap[match[1].toLowerCase()];
+      if (mapped && !tools.includes(mapped)) tools.push(mapped);
     }
   }
-  return meta;
+  const result = tools.length > 0 ? tools : [...DEFAULT_TOOLS];
+  // Validate against the registry's ToolName enum; unknown names are dropped.
+  return result.filter((t): t is AgentDefinition["tools"][number] =>
+    registry.ToolName.safeParse(t).success,
+  );
 }
 
-function readFileOr(path: string, fallback: string): string {
-  return existsSync(path) ? readFileSync(path, "utf-8") : fallback;
-}
-
-function readAgentJson(agentDir: string): Record<string, unknown> {
-  const configPath = join(agentDir, "openclaw.json");
-  if (!existsSync(configPath)) return {};
-  try {
-    return JSON.parse(readFileSync(configPath, "utf-8"));
-  } catch {
-    return {};
-  }
-}
-
-// Map LLM provider/model strings to Claude Agent SDK model values
-function resolveModel(provider: string, model: string): string {
+function resolveModel(provider: string, model: string): AgentDefinition["model"] {
   if (provider === "anthropic" || provider === "claude") {
     if (model.includes("opus")) return "opus";
     if (model.includes("haiku")) return "haiku";
-    return "sonnet";
   }
-  // Default to sonnet for other providers (Claude Agent SDK only supports Anthropic)
   return "sonnet";
 }
 
-// Map tools string from TOOLS.md to allowed tool names
-function parseTools(toolsContent: string): string[] {
-  const defaultTools = ["Read", "Write", "Glob", "Grep", "Bash", "WebSearch", "WebFetch"];
-  if (!toolsContent.trim()) return defaultTools;
+/** Strip a leading YAML frontmatter block, if any, leaving the prompt body. */
+function stripFrontmatter(text: string): string {
+  return text.replace(/^---[\s\S]*?---\n*/, "").trim();
+}
 
-  const tools: string[] = [];
-  const toolMap: Record<string, string> = {
-    "file-read": "Read",
-    "file-write": "Write",
-    "file-search": "Glob",
-    "content-search": "Grep",
-    "shell": "Bash",
-    "bash": "Bash",
-    "web-search": "WebSearch",
-    "web-fetch": "WebFetch",
-    "read": "Read",
-    "write": "Write",
-    "glob": "Glob",
-    "grep": "Grep",
-    "websearch": "WebSearch",
-    "webfetch": "WebFetch",
-    "task": "Task",
+/** Compose a system prompt from an (optional) soul body and identity. */
+function assemblePrompt(soul: string | undefined, identity: string | undefined, fallback: string): string {
+  const body = stripFrontmatter(soul ?? "") || fallback;
+  const id = identity?.trim();
+  return id ? `${body}\n\n## Identity\n${id}` : body;
+}
+
+function renderToolsMarkdown(tools: readonly string[]): string {
+  return `# Tools\n\n${tools.map((t) => `- **${t.toLowerCase()}** - ${t}`).join("\n")}\n`;
+}
+
+/** Present a registry definition through the historical OpenClaw config shape. */
+function defToConfig(name: string, def: AgentDefinition): OpenClawAgentConfig {
+  return {
+    name,
+    soul: `---\nname: "${def.displayName}"\ndescription: "${def.description}"\n---\n\n${def.systemPrompt}`,
+    tools: renderToolsMarkdown(def.tools),
+    identity: "",
+    heartbeat: "",
+    llmProvider: def.llmProvider,
+    llmModel: def.model,
+    skills: [],
   };
-
-  // Parse tool names from markdown list items or YAML-like entries
-  const lines = toolsContent.split("\n");
-  for (const line of lines) {
-    const match = line.match(/^[\s]*[-*]\s*(?:\*\*)?(\w[\w-]*)(?:\*\*)?/i);
-    if (match) {
-      const name = match[1].toLowerCase();
-      const mapped = toolMap[name];
-      if (mapped && !tools.includes(mapped)) {
-        tools.push(mapped);
-      }
-    }
-  }
-
-  return tools.length > 0 ? tools : defaultTools;
 }
 
 export function listAgents(): OpenClawAgentSummary[] {
-  ensureWorkspace();
-  const entries = readdirSync(WORKSPACE_ROOT, { withFileTypes: true });
-  const agents: OpenClawAgentSummary[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const agentDir = join(WORKSPACE_ROOT, entry.name);
-    const soulPath = join(agentDir, "SOUL.md");
-    if (!existsSync(soulPath)) continue;
-
-    const soulContent = readFileSync(soulPath, "utf-8");
-    const meta = parseFrontmatter(soulContent);
-    const config = readAgentJson(agentDir);
-    const skillsDir = join(agentDir, "skills");
-    const skillCount = existsSync(skillsDir)
-      ? readdirSync(skillsDir).filter((f) => f.startsWith("SKILL-") && f.endsWith(".md")).length
-      : 0;
-
-    const stat = statSync(soulPath);
-
-    agents.push({
-      name: entry.name,
-      displayName: meta.name || meta.title || entry.name,
-      description: meta.description || "",
-      llmProvider: String(config.llmProvider || "anthropic"),
-      llmModel: String(config.llmModel || "sonnet"),
-      skillCount,
-      lastModified: stat.mtime.toISOString(),
-    });
-  }
-
-  return agents;
+  return registry.listAgents().map((a) => ({
+    name: a.name,
+    displayName: a.display_name,
+    description: a.description,
+    llmProvider: "anthropic",
+    llmModel: a.model,
+    skillCount: 0,
+    lastModified: a.updated_at,
+  }));
 }
 
 export function getAgent(name: string): OpenClawAgentConfig | null {
-  const agentDir = join(WORKSPACE_ROOT, name);
-  if (!existsSync(join(agentDir, "SOUL.md"))) return null;
-
-  const config = readAgentJson(agentDir);
-  const skillsDir = join(agentDir, "skills");
-  const skills = existsSync(skillsDir)
-    ? readdirSync(skillsDir).filter((f) => f.startsWith("SKILL-") && f.endsWith(".md"))
-    : [];
-
-  return {
-    name,
-    soul: readFileOr(join(agentDir, "SOUL.md"), ""),
-    tools: readFileOr(join(agentDir, "TOOLS.md"), ""),
-    identity: readFileOr(join(agentDir, "IDENTITY.md"), ""),
-    heartbeat: readFileOr(join(agentDir, "HEARTBEAT.md"), ""),
-    llmProvider: String(config.llmProvider || "anthropic"),
-    llmModel: String(config.llmModel || "sonnet"),
-    skills,
-  };
+  const def = registry.getAgentDefinition(name);
+  return def ? defToConfig(name, def) : null;
 }
 
 export function createAgent(req: NewOpenClawAgentRequest): OpenClawAgentConfig {
-  ensureWorkspace();
-  const safeName = req.name.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase();
-  const agentDir = join(WORKSPACE_ROOT, safeName);
-
-  if (existsSync(agentDir)) {
-    throw new Error(`Agent "${safeName}" already exists`);
-  }
-
-  mkdirSync(agentDir, { recursive: true });
-  mkdirSync(join(agentDir, "skills"), { recursive: true });
-
-  const soulContent = `---
-name: "${req.displayName}"
-description: "${req.description}"
----
-
-${req.soul || `# ${req.displayName}\n\nYou are ${req.displayName}. ${req.description}`}`;
-
-  writeFileSync(join(agentDir, "SOUL.md"), soulContent);
-  writeFileSync(join(agentDir, "TOOLS.md"), req.tools || defaultToolsContent());
-  writeFileSync(join(agentDir, "IDENTITY.md"), req.identity || defaultIdentityContent(req.displayName));
-  writeFileSync(
-    join(agentDir, "openclaw.json"),
-    JSON.stringify(
-      {
-        llmProvider: req.llmProvider || "anthropic",
-        llmModel: req.llmModel || "sonnet",
-      },
-      null,
-      2
-    )
+  const slug = req.name.replace(/[^a-zA-Z0-9_-]/g, "-").toLowerCase();
+  const systemPrompt = assemblePrompt(
+    req.soul,
+    req.identity,
+    `# ${req.displayName}\n\n${req.displayName}. ${req.description}`,
   );
-
-  return getAgent(safeName)!;
+  registry.createAgent(
+    slug,
+    {
+      displayName: req.displayName,
+      description: req.description,
+      systemPrompt,
+      tools: parseTools(req.tools),
+      model: resolveModel(req.llmProvider, req.llmModel),
+    },
+    { kind: "user", reason: "created via studio" },
+  );
+  return getAgent(slug)!;
 }
 
 export function updateAgent(name: string, req: UpdateOpenClawAgentRequest): OpenClawAgentConfig | null {
-  const agentDir = join(WORKSPACE_ROOT, name);
-  if (!existsSync(join(agentDir, "SOUL.md"))) return null;
+  const current = registry.getAgentDefinition(name);
+  if (!current) return null;
 
-  if (req.soul !== undefined) writeFileSync(join(agentDir, "SOUL.md"), req.soul);
-  if (req.tools !== undefined) writeFileSync(join(agentDir, "TOOLS.md"), req.tools);
-  if (req.identity !== undefined) writeFileSync(join(agentDir, "IDENTITY.md"), req.identity);
-  if (req.heartbeat !== undefined) writeFileSync(join(agentDir, "HEARTBEAT.md"), req.heartbeat);
-
+  const patch: Partial<AgentDefinition> = {};
+  if (req.soul !== undefined || req.identity !== undefined) {
+    const body = req.soul !== undefined ? stripFrontmatter(req.soul) : current.systemPrompt;
+    patch.systemPrompt = req.identity?.trim() ? `${body}\n\n## Identity\n${req.identity.trim()}` : body;
+  }
+  if (req.tools !== undefined) patch.tools = parseTools(req.tools);
   if (req.llmProvider !== undefined || req.llmModel !== undefined) {
-    const config = readAgentJson(agentDir);
-    if (req.llmProvider) config.llmProvider = req.llmProvider;
-    if (req.llmModel) config.llmModel = req.llmModel;
-    writeFileSync(join(agentDir, "openclaw.json"), JSON.stringify(config, null, 2));
+    patch.model = resolveModel(req.llmProvider ?? current.llmProvider, req.llmModel ?? current.model);
   }
 
+  registry.reviseAgent(name, patch, { reason: "updated via studio" });
   return getAgent(name);
 }
 
 export function deleteAgent(name: string): boolean {
-  const agentDir = join(WORKSPACE_ROOT, name);
-  if (!existsSync(agentDir)) return false;
-  rmSync(agentDir, { recursive: true, force: true });
-  return true;
+  try {
+    registry.archiveAgent(name);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function runAgent(
@@ -236,51 +184,38 @@ export async function runAgent(
   options: {
     onMessage?: (msg: unknown) => void;
     sessionId?: string;
-  } = {}
+  } = {},
 ): Promise<unknown[]> {
-  const agent = getAgent(name);
-  if (!agent) throw new Error(`Agent "${name}" not found`);
+  const def = registry.getAgentDefinition(name);
+  if (!def) throw new Error(`Agent "${name}" not found`);
 
-  // Build system prompt from SOUL.md + IDENTITY.md + skills
-  const soulBody = agent.soul.replace(/^---[\s\S]*?---\n*/, "").trim();
-  const identityBody = agent.identity.trim();
-  const skillPrompts = loadSkillPrompts(name);
-
-  const systemPrompt = [
-    soulBody,
-    identityBody ? `\n## Identity\n${identityBody}` : "",
-    skillPrompts ? `\n## Skills\n${skillPrompts}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-
-  const tools = parseTools(agent.tools);
-  const model = resolveModel(agent.llmProvider, agent.llmModel);
-  const agentDir = join(WORKSPACE_ROOT, name);
-  const config = readAgentJson(agentDir);
-  const maxTurns = typeof config.maxTurns === "number" ? config.maxTurns : 30;
+  const tools = [...def.tools];
   const messages: unknown[] = [];
 
   if (getRunnerMode() === "cli") {
+    // CLI mode runs Claude Code as a subprocess; the in-process tool gate does
+    // not reach it. (Gating the CLI path needs settings-file hooks — follow-up.)
     return queryViaCli(prompt, {
-      systemPrompt,
+      systemPrompt: def.systemPrompt,
       allowedTools: tools,
       cwd: PROJECT_ROOT,
-      maxTurns,
+      maxTurns: def.maxTurns,
       onMessage: options.onMessage,
     });
   }
 
   const query = await getSdkQuery();
+  const gateHooks = buildToolGateHooks({ agentName: name, allowedTools: tools, projectRoot: PROJECT_ROOT });
   for await (const message of query({
     prompt,
     options: {
-      systemPrompt,
+      systemPrompt: def.systemPrompt,
       allowedTools: tools,
       cwd: PROJECT_ROOT,
+      hooks: gateHooks,
       permissionMode: "acceptEdits",
-      maxTurns,
-      model: model as "sonnet" | "haiku" | "opus",
+      maxTurns: def.maxTurns,
+      model: def.model,
       ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     },
   })) {
@@ -291,137 +226,51 @@ export async function runAgent(
   return messages;
 }
 
-function loadSkillPrompts(agentName: string): string {
-  const skillsDir = join(WORKSPACE_ROOT, agentName, "skills");
-  if (!existsSync(skillsDir)) return "";
+// --- Skills ---------------------------------------------------------------
+// Skills are now inline in the system prompt. The per-skill file API is retained
+// for route compatibility: installing appends a skill section as a new revision;
+// there is no separate skill store to list, read, or remove.
 
-  const skills = readdirSync(skillsDir).filter(
-    (f) => f.startsWith("SKILL-") && f.endsWith(".md")
+export function listSkills(_agentName: string): Array<{ filename: string; name: string; description: string }> {
+  return [];
+}
+
+export function installSkill(agentName: string, skillFilename: string, content: string): void {
+  const current = registry.getAgentDefinition(agentName);
+  if (!current) throw new Error(`Agent "${agentName}" not found`);
+  const skillName = skillFilename.replace(/^SKILL-/, "").replace(/\.md$/, "");
+  registry.reviseAgent(
+    agentName,
+    { systemPrompt: `${current.systemPrompt}\n\n## Skill: ${skillName}\n${content.trim()}` },
+    { reason: `installed skill ${skillName}` },
   );
-
-  return skills
-    .map((f) => {
-      const content = readFileSync(join(skillsDir, f), "utf-8");
-      // Strip frontmatter, return body
-      return content.replace(/^---[\s\S]*?---\n*/, "").trim();
-    })
-    .filter(Boolean)
-    .join("\n\n---\n\n");
 }
 
-function defaultToolsContent(): string {
-  return `# Tools
-
-- **read** - Read files from the filesystem
-- **write** - Write files to the filesystem
-- **glob** - Search for files by pattern
-- **grep** - Search file contents
-- **bash** - Execute shell commands
-- **web-search** - Search the web
-- **web-fetch** - Fetch web pages
-`;
+export function getSkillContent(_agentName: string, _skillFilename: string): string | null {
+  return null;
 }
 
-function defaultIdentityContent(name: string): string {
-  return `# Identity
-
-You are **${name}**, a helpful AI assistant. You communicate clearly and concisely, focusing on delivering accurate and actionable responses.
-`;
+export function removeSkill(_agentName: string, _skillFilename: string): boolean {
+  return false;
 }
 
-// Skill management
-export function listSkills(agentName: string): Array<{ filename: string; name: string; description: string }> {
-  const skillsDir = join(WORKSPACE_ROOT, agentName, "skills");
-  if (!existsSync(skillsDir)) return [];
+// --- Seeding --------------------------------------------------------------
 
-  return readdirSync(skillsDir)
-    .filter((f) => f.startsWith("SKILL-") && f.endsWith(".md"))
-    .map((filename) => {
-      const content = readFileSync(join(skillsDir, filename), "utf-8");
-      const meta = parseFrontmatter(content);
-      return {
-        filename,
-        name: meta.name || filename.replace(/^SKILL-/, "").replace(/\.md$/, ""),
-        description: meta.description || "",
-      };
-    });
+function readBuiltInPrompt(filename: string): string {
+  const promptPath = join(PROJECT_ROOT, "agent-server/src/prompts", filename);
+  if (existsSync(promptPath)) return readFileSync(promptPath, "utf-8");
+  // Compiled binaries / installed bundles ship no source tree — use the copy
+  // embedded at build time.
+  return EMBEDDED_PROMPTS[filename] ?? "";
 }
 
-export function installSkill(
-  agentName: string,
-  skillFilename: string,
-  content: string
-): void {
-  const skillsDir = join(WORKSPACE_ROOT, agentName, "skills");
-  mkdirSync(skillsDir, { recursive: true });
-  const safeName = skillFilename.startsWith("SKILL-") ? skillFilename : `SKILL-${skillFilename}`;
-  const finalName = safeName.endsWith(".md") ? safeName : `${safeName}.md`;
-  writeFileSync(join(skillsDir, finalName), content);
-}
-
-export function getSkillContent(agentName: string, skillFilename: string): string | null {
-  const skillPath = join(WORKSPACE_ROOT, agentName, "skills", skillFilename);
-  if (!existsSync(skillPath)) return null;
-  return readFileSync(skillPath, "utf-8");
-}
-
-export function removeSkill(agentName: string, skillFilename: string): boolean {
-  const skillPath = join(WORKSPACE_ROOT, agentName, "skills", skillFilename);
-  if (!existsSync(skillPath)) return false;
-  rmSync(skillPath);
-  return true;
-}
-
-// Seed built-in agents into OpenClaw workspace on first run
-export function seedBuiltInAgents(): void {
-  ensureWorkspace();
-
-  // --- Documentation Agent (with 4 sub-agent skills) ---
-  seedDocumentationAgent();
-
-  // --- Evernote Agent (standalone) ---
-  seedSimpleAgent({
-    name: "evernote",
-    displayName: "Evernote Agent",
-    description: "Manages Evernote notes and notebooks - search, read, create, and update notes",
-    soul: readBuiltInPrompt("evernote.md"),
-    tools: ["Read", "Write", "Bash", "Glob", "Grep"],
-    model: "sonnet",
-    maxTurns: 20,
-  });
-
-  // NOTE: security / owasp / vapt are intentionally NOT seeded as OpenClaw souls.
-  // They are first-class Anthropic (Claude Agent SDK) agents defined in code under
-  // agent-server/src/agents/{security,owasp,vapt}.ts with version-controlled prompts,
-  // per-agent tool allow-lists, and pinned models — run via runDirectAgent. Keeping
-  // the security assessors code-defined (not runtime-editable souls) preserves
-  // auditability for the regulated AA context.
-}
-
-function seedDocumentationAgent(): void {
-  const name = "documentation";
-  const agentDir = join(WORKSPACE_ROOT, name);
-
-  // Don't overwrite if already exists
-  if (existsSync(join(agentDir, "SOUL.md"))) return;
-
-  mkdirSync(agentDir, { recursive: true });
-  mkdirSync(join(agentDir, "skills"), { recursive: true });
-
-  // SOUL.md — unified documentation agent
-  const soulContent = `---
-name: "Documentation Agent"
-description: "Unified documentation agent with sub-skills for discovery (BRD), requirements (FRD), knowledge base, and process docs generation"
-built_in: true
----
-
-# Documentation Agent
+const DOC_ROUTING_PROMPT = `# Documentation Agent
 
 You are the Documentation Agent for the Sahamati system. You handle all documentation tasks across the software development lifecycle.
 
 ## How You Work
 
-You have **four specialized skills** installed. When given a task, identify which skill applies and follow its workflow:
+You have four specialized skills. When given a task, identify which skill applies and follow its workflow:
 
 1. **Discovery** — Generate Business Requirements Documents (BRDs) from meeting notes, project descriptions, or stakeholder conversations
 2. **Requirements** — Transform approved BRDs into Functional Requirements Documents (FRDs) and user stories with acceptance criteria
@@ -441,131 +290,41 @@ You have **four specialized skills** installed. When given a task, identify whic
 - Always include YAML frontmatter with title, generated_by, date, confidence score
 - Write generated docs to \`docs/generated/\` under the appropriate subdirectory
 - Mark incomplete sections with \`<!-- NEEDS INPUT: description -->\`
-- Return a summary of what was generated with file paths and confidence scores
-`;
+- Return a summary of what was generated with file paths and confidence scores`;
 
-  writeFileSync(join(agentDir, "SOUL.md"), soulContent);
-
-  // TOOLS.md — superset of all sub-agent tools
-  writeFileSync(join(agentDir, "TOOLS.md"), `# Tools
-
-- **read** - Read files from the filesystem
-- **write** - Write files to the filesystem
-- **glob** - Search for files by pattern
-- **grep** - Search file contents
-- **bash** - Execute shell commands
-- **web-search** - Search the web
-- **web-fetch** - Fetch web pages
-`);
-
-  // IDENTITY.md
-  writeFileSync(join(agentDir, "IDENTITY.md"), `# Identity
-
-You are the **Documentation Agent**, a professional technical writer and analyst. You generate high-quality, actionable documentation following established templates and best practices. You communicate clearly, write in professional business and technical language, and always provide structured outputs with confidence scores.
-`);
-
-  // openclaw.json
-  writeFileSync(
-    join(agentDir, "openclaw.json"),
-    JSON.stringify(
-      {
-        llmProvider: "anthropic",
-        llmModel: "sonnet",
-        maxTurns: 40,
-        builtIn: true,
-      },
-      null,
-      2
-    )
-  );
-
-  // Install the 4 doc sub-agent skills
-  const subSkills: Array<{ filename: string; content: string }> = [
-    {
-      filename: "SKILL-discovery.md",
-      content: buildSkillContent(
-        "discovery",
-        "Generate Business Requirements Documents (BRDs) from meeting notes, project descriptions, or stakeholder conversations",
-        readBuiltInPrompt("discovery.md")
-      ),
-    },
-    {
-      filename: "SKILL-requirements.md",
-      content: buildSkillContent(
-        "requirements",
-        "Transform BRDs into Functional Requirements Documents (FRDs) and user stories with acceptance criteria",
-        readBuiltInPrompt("requirements.md")
-      ),
-    },
-    {
-      filename: "SKILL-knowledge.md",
-      content: buildSkillContent(
-        "knowledge",
-        "Documentation health checks, gap analysis, and knowledge base article generation",
-        readBuiltInPrompt("knowledge.md")
-      ),
-    },
-    {
-      filename: "SKILL-process-docs.md",
-      content: buildSkillContent(
-        "process-docs",
-        "Connect to GitHub repos and generate architecture overview, deployment runbook, dev standards, API docs, and setup guides",
-        readBuiltInPrompt("process-docs.md")
-      ),
-    },
-  ];
-
-  for (const skill of subSkills) {
-    writeFileSync(join(agentDir, "skills", skill.filename), skill.content);
-  }
+function buildDocumentationPrompt(): string {
+  const skills = ["discovery", "requirements", "knowledge", "process-docs"]
+    .map((s) => `## Skill: ${s}\n\n${readBuiltInPrompt(`${s}.md`)}`.trim())
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+  return `${DOC_ROUTING_PROMPT}\n\n${skills}`;
 }
 
-function buildSkillContent(name: string, description: string, prompt: string): string {
-  return `---\nname: "${name}"\ndescription: "${description}"\n---\n\n${prompt}`;
+/** Idempotently seed the built-in agents into the registry. */
+export function seedBuiltInAgents(): void {
+  const seedIfAbsent = (name: string, def: AgentDefinition) => {
+    if (registry.getAgent(name)) return; // row exists (any status) → leave it
+    registry.createAgent(name, def, { kind: "built_in", reason: "seeded built-in" });
+  };
+
+  seedIfAbsent("documentation", {
+    displayName: "Documentation Agent",
+    description:
+      "Unified documentation agent with skills for discovery (BRD), requirements (FRD), knowledge base, and process docs",
+    systemPrompt: buildDocumentationPrompt(),
+    tools: [...DEFAULT_TOOLS],
+    model: "sonnet",
+    maxTurns: 40,
+    llmProvider: "anthropic",
+  });
+
+  seedIfAbsent("evernote", {
+    displayName: "Evernote Agent",
+    description: "Manages Evernote notes and notebooks - search, read, create, and update notes",
+    systemPrompt: readBuiltInPrompt("evernote.md") || "You are the Evernote agent.",
+    tools: ["Read", "Write", "Bash", "Glob", "Grep"],
+    model: "sonnet",
+    maxTurns: 20,
+    llmProvider: "anthropic",
+  });
 }
-
-function seedSimpleAgent(def: {
-  name: string;
-  displayName: string;
-  description: string;
-  soul: string;
-  tools: string[];
-  model: string;
-  maxTurns: number;
-}): void {
-  const agentDir = join(WORKSPACE_ROOT, def.name);
-  if (existsSync(join(agentDir, "SOUL.md"))) return;
-
-  mkdirSync(agentDir, { recursive: true });
-  mkdirSync(join(agentDir, "skills"), { recursive: true });
-
-  const soulContent = `---\nname: "${def.displayName}"\ndescription: "${def.description}"\nbuilt_in: true\n---\n\n${def.soul}`;
-  writeFileSync(join(agentDir, "SOUL.md"), soulContent);
-
-  const toolsList = def.tools.map((t) => `- **${t.toLowerCase()}** - ${t}`).join("\n");
-  writeFileSync(join(agentDir, "TOOLS.md"), `# Tools\n\n${toolsList}\n`);
-
-  writeFileSync(
-    join(agentDir, "IDENTITY.md"),
-    `# Identity\n\nYou are **${def.displayName}**. ${def.description}. You communicate clearly and professionally, focusing on delivering actionable outputs.\n`
-  );
-
-  writeFileSync(
-    join(agentDir, "openclaw.json"),
-    JSON.stringify(
-      { llmProvider: "anthropic", llmModel: def.model, maxTurns: def.maxTurns, builtIn: true },
-      null,
-      2
-    )
-  );
-}
-
-function readBuiltInPrompt(filename: string): string {
-  const promptPath = join(PROJECT_ROOT, "agent-server/src/prompts", filename);
-  if (existsSync(promptPath)) return readFileSync(promptPath, "utf-8");
-  // Compiled binaries / installed bundles have no source tree — use the
-  // copy embedded at build time.
-  return EMBEDDED_PROMPTS[filename] ?? "";
-}
-
-export { WORKSPACE_ROOT };

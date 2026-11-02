@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useProject } from "../context/ProjectContext";
 import { usePermissions } from "../hooks/usePermissions";
 import AgentRunner from "../components/AgentRunner";
@@ -47,6 +48,12 @@ const AGENT_WORKFLOWS = [
     description: "Vulnerability assessment & penetration-test plan: recon, STRIDE threat model, findings, and an operator run-book.",
     phase: "Development",
   },
+  {
+    type: "rankmath",
+    title: "WordPress SEO (Rank Math)",
+    description: "Fetch and review SEO data from a WordPress site running Rank Math — site audit, post SEO meta, link reports, and schema.",
+    phase: "Development",
+  },
 ];
 
 export default function ProjectWorkflows() {
@@ -76,6 +83,11 @@ export default function ProjectWorkflows() {
       <h1>Agent Workflows</h1>
 
       <div className="workflow-cards">
+        <Link to={`/projects/${project.slug}/defender`} className="workflow-card workflow-card-link">
+          <h3>Defender: dependency CVEs</h3>
+          <p>Scan lockfiles against public advisories, triage reachability, and open remediation PRs. Opens the Defender page.</p>
+          <span className="workflow-card-phase">Phase: Development</span>
+        </Link>
         {AGENT_WORKFLOWS.map((workflow) => (
           <button
             key={workflow.type}

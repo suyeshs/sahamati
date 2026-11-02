@@ -52,7 +52,7 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.2
 
       - name: Install Rust (x86_64-unknown-linux-gnu)
         uses: dtolnay/rust-toolchain@stable

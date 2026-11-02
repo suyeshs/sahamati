@@ -62,6 +62,20 @@ export interface Finding {
   status: FindingStatus;
   first_seen_scan_id: string | null;
   created_at: string;
+  // Dependency-CVE columns (migration 009). Null for VAPT-style findings.
+  ecosystem: string | null;
+  package: string | null;
+  installed_version: string | null;
+  fixed_version: string | null;
+  /** JSON array of advisory ids. */
+  advisory_ids: string | null;
+  manifest_path: string | null;
+  is_direct: number | null;
+  priority: "p0" | "p1" | "p2" | "p3" | null;
+  reachability: "reachable" | "unreachable" | "unknown" | null;
+  triage_note: string | null;
+  remediation_pr_url: string | null;
+  status_changed_at: string | null;
 }
 
 export interface NewFinding {
@@ -74,6 +88,14 @@ export interface NewFinding {
   location: string;
   evidence?: string;
   remediation?: string;
+  // Optional dependency-CVE fields; omitted for VAPT findings.
+  ecosystem?: string;
+  package?: string;
+  installedVersion?: string;
+  fixedVersion?: string | null;
+  advisoryIds?: string[];
+  manifestPath?: string;
+  isDirect?: boolean;
 }
 
 export interface FindingDiff {

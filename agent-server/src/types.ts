@@ -137,6 +137,53 @@ export interface DeploymentCreateRequest {
     | { type: "tarball"; url: string; sha256?: string };
 }
 
+// --- Agent registry (validated, versioned; replaces filesystem soul agents) ---
+
+export type AgentKind = "user" | "built_in";
+export type AgentStatus = "active" | "archived";
+export type AgentModel = "sonnet" | "haiku" | "opus";
+
+export interface Agent {
+  id: string;
+  name: string;
+  display_name: string;
+  kind: AgentKind;
+  status: AgentStatus;
+  current_revision_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentRevision {
+  id: string;
+  agent_id: string;
+  revision: number;
+  display_name: string;
+  description: string;
+  system_prompt: string;
+  tools: string; // JSON array of tool names
+  model: AgentModel;
+  max_turns: number;
+  llm_provider: string;
+  content_hash: string;
+  change_reason: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface AgentSummary {
+  name: string;
+  display_name: string;
+  kind: AgentKind;
+  status: AgentStatus;
+  model: AgentModel;
+  revision: number;
+  description: string;
+  tool_count: number;
+  updated_at: string;
+}
+
 // Hono context variable types for middleware
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface AppVariables {
